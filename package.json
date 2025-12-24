@@ -1,0 +1,122 @@
+{
+  "name": "ant-target-runner",
+  "displayName": "Ant Target Runner",
+  "description": "Reads build.xml and displays runnable Ant targets",
+  "version": "0.0.1",
+  "publisher": "local",
+  "engines": {
+    "vscode": "^1.107.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [],
+  "main": "./out/extension.js",
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "ant-runner",
+          "title": "Ant Runner",
+          "icon": "$(tools)"
+        }
+      ]
+    },
+    "views": {
+      "ant-runner": [
+        {
+          "id": "antTargets",
+          "name": "Ant Targets",
+          "icon": "$(tools)"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "ant-target-runner.runTarget",
+        "title": "Run Ant Target",
+        "icon": "$(run)"
+      },
+      {
+        "command": "ant-target-runner.openTarget",
+        "title": "Open Target in Editor",
+        "icon": "$(go-to-file)"
+      },
+      {
+        "command": "ant-target-runner.refreshTargets",
+        "title": "Refresh Ant Targets",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "ant-target-runner.togglePrimaryTargets",
+        "title": "Toggle Primary/All Targets",
+        "icon": "$(filter)"
+      },
+      {
+        "command": "ant-target-runner.configureBuildFile",
+        "title": "Configure Build File Path"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "ant-target-runner.refreshTargets",
+          "when": "view == antTargets",
+          "group": "navigation"
+        },
+        {
+          "command": "ant-target-runner.togglePrimaryTargets",
+          "when": "view == antTargets",
+          "group": "navigation"
+        },
+        {
+          "command": "ant-target-runner.configureBuildFile",
+          "when": "view == antTargets"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "ant-target-runner.runTarget",
+          "when": "view == antTargets && viewItem == antTarget",
+          "group": "inline@1"
+        },
+        {
+          "command": "ant-target-runner.openTarget",
+          "when": "view == antTargets && viewItem == antTarget",
+          "group": "inline@2"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Ant Target Runner",
+      "properties": {
+        "antRunner.buildFilePath": {
+          "type": "string",
+          "default": "",
+          "description": "Path to the build.xml file"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "pretest": "npm run compile && npm run lint",
+    "lint": "eslint src",
+    "test": "vscode-test"
+  },
+  "devDependencies": {
+    "@types/mocha": "^10.0.10",
+    "@types/node": "^22.19.3",
+    "@types/vscode": "^1.107.0",
+    "@vscode/test-cli": "^0.0.12",
+    "@vscode/test-electron": "^2.5.2",
+    "eslint": "^9.39.1",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.48.1"
+  },
+  "dependencies": {
+    "fast-xml-parser": "^5.3.3"
+  }
+}

@@ -1,0 +1,2772 @@
+<?xml version = '1.0'?>
+<!DOCTYPE project>
+<project name="CHP" basedir=".">
+	<!-- load environment variables for JBOSS_HOME lookup -->
+	<property environment="env"/>
+	<!-- load project-specific properties (e.g., jbosseap.home from build.properties) -->
+	<property file="build.properties" />
+	<!-- VERSION OF APACHE CHEMISTRY BEING USED -->
+	<property name="ApacheChemistryVersion" value="1.1.0" />
+	<property name="ApacheChemistryBrowserVersion" value="0.14.0" />
+	<macrodef name="set.timestamp">
+		<sequential>
+			<tstamp>
+				<format property="current.time" pattern="d/M/yyyy h:mm aa"/>
+			</tstamp>
+		</sequential>
+	</macrodef>
+	<property name="StaticString" value="${ant.project.name}"/>
+	<macrodef name="RemoveProjectNameStaticString">
+		<sequential>
+			<var name="StaticString" unset="true"/>
+			<property name="StaticString" value=""/>
+		</sequential>
+	</macrodef>
+	<property name="CHPReleaseName" value="CHP" />
+	<property name="CHPSysMgtReleaseName" value="CHPSysMgt" />
+	<property name="CMISReleaseName" value="CMIS" />
+	<property name="PanelFrameworkReleaseName" value="PanelFramework" />
+	<property name="MMTETestReleaseName" value="MMTETest" />
+	<property name="ProxyReleaseName" value="Proxy" />
+	<property name="StorageReleaseName" value="Storage" />
+	<taskdef resource="net/sf/antcontrib/antcontrib.properties">
+		<classpath>
+			<fileset dir="${basedir}/lib">
+				<include name="ant-contrib-*.jar"/>
+			</fileset>
+		</classpath>
+	</taskdef>
+	<if>
+		<equals arg1="test" arg2="test" />
+		<then />
+	</if>
+	<!-- jar files in the classpath that aren't released -->
+	<property name="NotReleasedAppServer" value="**/stax-1.2.0.jar,**/stax-api-1.0.1.jar,**/stax-api-1.0.jar,**/jsp-api.jar,**/activation.jar,**/mail.jar,**/servlet-api.jar,**/jaxrpc*.jar" />
+	<property name="NotReleasedStd" value="**/bin,**/j2ee.jar,**/jboss-j2ee.jar,**/jboss-javaee.jar,**/junit.jar,**/weblogic.jar,**/gettext-ant-*.jar,**/ant.jar,**/solr*.jar" />
+	<property name="CMISLibsToExcludeFromAllBuilds" value="**/jaxb*.jar" />
+	<!-- List CMIS libraries to exclude from the non-CMIS builds -->
+	<property name="CMISOnlyLibs" value="**/chemistry-*.jar,**/cxf-*.jar,**/jaxb*.jar,**/jaxws*.jar,**/asm-*.jar,**/neethi-*.jar,**/stax-*.jar,**/woodstox-*.jar,**/wsdl4j-*.jar,**/xml-resolver-*.jar,**/xmlschema-*.jar" />
+	<property name="NotReleased" value="${NotReleasedStd},${NotReleasedAppServer},${CMISLibsToExcludeFromAllBuilds}" />
+	<path id="maven.classpath">
+		<fileset dir="${basedir}/lib">
+			<include name="**/*.jar"/>
+		</fileset>
+	</path>
+	<property name="PROJECT_LOC" location="${basedir}"/>
+	<property name="WorkspaceDir" value="${basedir}/.." />
+	<property name="LibDir" value="${basedir}/lib" />
+	<path id="groovy.classpath">
+		<fileset dir="${LibDir}" includes="groovy-all-2.4.21.jar" />
+	</path>
+	<property name="RootDir" value="/home" />
+	<property name="DeployDir" value="${RootDir}/chp" />
+	<property name="BackupDir" value="${RootDir}/Backup" />
+	<property name="ApplicationsDir" value="${ant.project.name}Applications" />
+	<property name="ReleaseDir" value="${DeployDir}/${ApplicationsDir}" />
+	<property name="Base_ReleaseDir" value="${RootDir}/Base" />
+	<property name="CHP_ReleaseDir" value="${ReleaseDir}/${CHPReleaseName}" />
+	<property name="CHPSysMgt_ReleaseDir" value="${ReleaseDir}/${CHPSysMgtReleaseName}" />
+	<property name="CMIS_ReleaseDir" value="${ReleaseDir}/${CMISReleaseName}" />
+	<property name="SystemStatus_ReleaseDir" value="${ReleaseDir}" />
+	<property name="PicUpload_ReleaseDir" value="${ReleaseDir}/${PicUploadReleaseName}" />
+	<property name="PanelFramework_ReleaseDir" value="${ReleaseDir}/${PanelFrameworkReleaseName}" />
+	<property name="MMTETest_ReleaseDir" value="${ReleaseDir}/${MMTETestReleaseName}" />
+	<property name="Proxy_ReleaseDir" value="${ReleaseDir}/${ProxyReleaseName}" />
+	<property name="Storage_ReleaseDir" value="${ReleaseDir}/${StorageReleaseName}" />
+	<property environment="env"/>
+	<property file="build.properties"/>
+	<property name="JDKLocation" value="${JDKOverride}"/>
+	<if>
+		<available file="${JDKLocation}" type="dir"/>
+		<then/>
+		<else>
+			<property name="JDKLocation" value="${env.JAVA_HOME}"/>
+			<if>
+				<available file="${JDKLocation}" type="dir"/>
+				<then/>
+				<else>
+					<fail message="Please set JAVA_HOME environment variable, or define 'JDKOverride' in build.properties, or pass '-DJDKOverride=path'." />
+				</else>
+			</if>
+		</else>
+	</if>
+	<property name="PackageReleaseDir" value="${RootDir}/CHP_Release_${MediaMogul.Version}" />
+	<property name="PackagePatchDir" value="${RootDir}/Patch" />
+	<property name="StandardConfigPackageDir" value="${PackageReleaseDir}/StandardConfiguration" />
+	<property name="Patch.Version" value="" />
+	<target name="EchoVersionNumbers">
+		<echo message="  Building CHP Version: ${MediaMogul.Version}" />
+		<if>
+			<not>
+				<equals arg1="${Patch.Version}" arg2="" />
+			</not>
+			<then>
+				<echo message="  Patch Version:  ${Patch.Version}" />
+			</then>
+		</if>
+	</target>
+	<target name="ConfirmVersionNumbers">
+		<property name="correctversion" value="Yes"/>
+		<if>
+			<equals arg1="${Patch.Version}" arg2="" />
+			<then>
+				<!--<input message="The target version number is '${MediaMogul.Version}'. Is this correct? (Remember that the string should be changed for each iteration demo or other interim build, and for final release builds. The string is in the MediaMogul.properties file.)" validargs="Yes,No" addproperty="correctversion" /> -->
+			</then>
+			<else>
+				<!-- <input message="The target version number is '${MediaMogul.Version}' with patch version '${Patch.Version}'. Is this correct?" validargs="Yes,No" addproperty="correctversion" /> -->
+			</else>
+		</if>
+		<fail message="Please update the properties file and build again.">
+			<condition>
+				<equals arg1="${correctversion}" arg2="No" />
+			</condition>
+		</fail>
+	</target>
+	<target name="Make Base" description="base">
+		<echo message="  Building CHP base Version: ${MediaMogul.Version}" />
+		<echo message="  Release Directory: ${Base_ReleaseDir}" />
+		<antcall target="Build CHP Base Jar" />
+		<antcall target="Log Completed Time" />
+	</target>
+	<target name="Build CHP Base Jar">
+		<delete dir="${Base_ReleaseDir}" />
+		<copy todir="${Base_ReleaseDir}">
+			<fileset dir="Base" />
+		</copy>
+		<copy todir="${Base_ReleaseDir}">
+			<fileset dir="bin" includes="com/picdar/application/Installer/BaseInstaller.class"/>
+		</copy>
+		<pathconvert property="chp.classpath" refid="maven.classpath"/>
+		<mkdir dir="${Base_ReleaseDir}/third_party_apps/solr/temporary-build-directory" />
+		<delete>
+			<fileset dir="${Base_ReleaseDir}/third_party_apps/solr/" includes="OT.jar" excludes="" />
+		</delete>
+		<tstamp>
+			<format property="current.time" pattern="yyyy.MM.dd HH:mm:ss z" locale="en,UK" />
+		</tstamp>
+		<javac executable="${JDKLocation}/bin/javac" fork="yes" source="17" target="17" srcdir="src" destdir="${Base_ReleaseDir}/third_party_apps/solr/temporary-build-directory" encoding="utf-8" includeantruntime="no" nowarn="yes" debug="true">
+			<classpath>
+				<pathelement path="${chp.classpath}"/>
+			</classpath>
+			<include name="org/apache/lucene/**" />
+			<include name="org/apache/solr/**" />
+		</javac>
+		<jar destfile="${Base_ReleaseDir}/third_party_apps/solr/OT.jar" basedir="${Base_ReleaseDir}/third_party_apps/solr/temporary-build-directory">
+			<manifest>
+				<attribute name="Implementation-Vendor" value="OpenText"/>
+				<attribute name="Implementation-Title" value="com.opentext.core.CHP"/>
+				<attribute name="Implementation-Version" value="${MediaMogul.Version}${Patch.Version}"/>
+				<attribute name="Build-Time" value="${current.time}"/>
+			</manifest>
+		</jar>
+		<delete dir="${Base_ReleaseDir}/third_party_apps/solr/temporary-build-directory" />
+		<echo message="CHP base installer build time logged at: ${current.time}"/>
+		<jar destfile="${Base_ReleaseDir}/CHP_${MediaMogul.Version}_Base.jar">
+			<manifest>
+				<attribute name="Main-Class" value="com.picdar.application.Installer.BaseInstaller" />
+				<attribute name="Implementation-Vendor" value="OpenText"/>
+				<attribute name="Implementation-Title" value="com.opentext.installer.CHP"/>
+				<attribute name="Implementation-Version" value="${MediaMogul.Version}"/>
+				<attribute name="Build-Time" value="${current.time}"/>
+			</manifest>
+			<fileset dir="${Base_ReleaseDir}" includes="bin/**"/>
+			<fileset dir="${Base_ReleaseDir}" includes="chpta/**"/>
+			<fileset dir="${Base_ReleaseDir}" includes="lib/**"/>
+			<fileset dir="${Base_ReleaseDir}" includes="log/**"/>
+			<fileset dir="${Base_ReleaseDir}" includes="third_party_apps/**"/>
+			<fileset dir="${Base_ReleaseDir}" includes="com/**"/>
+			<fileset dir="${Base_ReleaseDir}" includes="chp_profile.txt"/>
+			<fileset dir="${Base_ReleaseDir}" includes="chp_services_sample.cfg"/>
+		</jar>
+	</target>
+	<target name="Make release directory">
+		<antcall target="EchoVersionNumbers" />
+		<echo message="  Release Directory: ${ReleaseDir}" />
+		<mkdir dir="${ReleaseDir}" />
+	</target>
+	<target name="Maven build" >
+		<exec dir="." executable="cmd">
+			<arg line="/c mvn install" />
+		</exec>
+		<echo message="  Release Directory: ${ReleaseDir}" />
+	</target>
+	<target name="all (Oracle-Dev)" description="all (Oracle-Dev)">
+		<antcall target="Make release directory" />
+		<antcall target="Release System Props" >
+			<param name="SourceProps" value="mu2.oracle-dev.properties" />
+		</antcall>
+		<antcall target="Release for Dev Common" />
+	</target>
+	<target name="all (Postgres-Dev)" description="all (Postgres-Dev)">
+		<antcall target="Make release directory" />
+		<antcall target="Release System Props" >
+			<param name="SourceProps" value="local.postgres-dev.properties" />
+		</antcall>
+		<antcall target="Release for Dev Common" />
+	</target>
+	<target name="all (VM-Dev)" description="all (VM-Dev)">
+		<antcall target="Make release directory" />
+		<antcall target="Release System Props" >
+			<param name="SourceProps" value="local.vm-dev.properties" />
+		</antcall>
+		<antcall target="Release for Dev Common" />
+	</target>
+	<target name="Change system.properties to Oracle-Dev" description="Change system.properties to Oracle-Dev">
+		<antcall target="Release System Props" >
+			<param name="SourceProps" value="mu2.oracle-dev.properties" />
+		</antcall>
+	</target>
+	<target name="Change system.properties to Postgres-Dev" description="Change system.properties to Postgres-Dev">
+		<antcall target="Release System Props" >
+			<param name="SourceProps" value="local.postgres-dev.properties" />
+		</antcall>
+	</target>
+	<target name="Change system.properties to VM-Dev" description="Change system.properties to VM-Dev">
+		<antcall target="Release System Props" >
+			<param name="SourceProps" value="local.vm-dev.properties" />
+		</antcall>
+	</target>
+	<target name="Quick Rebuild all" description="Quick Rebuild all">
+		<property name="quickBuild" value="dummyvalue" />
+		<echo message="****************************************************************************************************" />
+		<echo message="* This is the quick rebuild.                                                                       *" />
+		<echo message="* The quick rebuild does not re-build system.properties, re-extract internationalisation messages, *" />
+		<echo message="* re-build test harnesses, or re-build tools.                                                      *" />
+		<echo message="****************************************************************************************************" />
+		<antcall target="Release for Dev Common" />
+	</target>
+	<target name="Quick Rebuild of JSP and JS only" description="Quick Rebuild of JS and JSP only">
+		<antcall target="Release CHP JSP and Static" />
+		<antcall target="Release CHPSysMgt JSP and Static" />
+		<antcall target="Release Storage JSP and Static" />
+		<antcall target="Release CMIS JSP" />
+	</target>
+	<target name="Quick Rebuild of JSP and JS skipping standard plugins" description="Quick Rebuild of JSP and JS skipping jQuery checks and standard plugins">
+		<property name="SkipBuildStandardPlugins" value="dummyvalue" />
+		<antcall target="Quick Rebuild of JSP and JS only" />
+	</target>
+	<target name="Release for Dev Common">
+		<antcall target="Maven build" />
+		<if>
+			<not>
+				<isset property="quickBuild" />
+			</not>
+			<then>
+				<antcall target="Check for bad scripts" />
+			</then>
+		</if>
+		<antcall target="Release CHP Data" />
+		<antcall target="Check for Java errors" />
+		<!-- Build the core Jar and then set a flag so that we don't build it again, to speed up build time -->
+		<antcall target="Build CHP Core Jar" />
+		<property name="CoreJarBuilt" value="dummyvalue" />
+		<antcall target="Release CHP" />
+		<antcall target="Release Storage" />
+		<antcall target="Release CHPSysMgt" />
+		<antcall target="Release CMIS" />
+		<antcall target="Release CMIS Browser" />
+		<if>
+			<not>
+				<isset property="quickBuild" />
+			</not>
+			<then>
+				<antcall target="Release CHP Test Harness" />
+				<antcall target="Release Tools" />
+			</then>
+		</if>
+		<antcall target="Log Completed Time" />
+	</target>
+	<target name="Check for Java errors">
+		<delete dir="bin" failonerror="false" />
+		<mkdir dir="bin/temporary-build-directory" />
+		<property name="jbossHome" value="${eclipse.jbosseap.home}"/>
+		<property name="jbossHome" value="${env.JBOSS_HOME}"/>
+		<property name="jbossHome" value="${jbosseap.home}"/>
+		<if>
+			<isset property="jbossHome" />
+			<then>
+				<echo message="Using JBoss class-path at ${jbossHome}" />
+				<property name="jbossJarBase" value="${jbossHome}/modules/system/layers/base"/>
+			</then>
+			<else>
+				<fail message="Please set JBoss EAP home: define 'eclipse.jbosseap.home' in Ant runtime properties, set environment variable 'JBOSS_HOME', or pass '-Djbosseap.home=...'." />
+			</else>
+		</if>
+		<echo>${jbossJarBase}</echo>
+		<path id="jbossClasspath">
+			<pathelement location="${jbossJarBase}/.overlays/layer-base-jboss-eap-7.4.12.CP/javax/activation/api/main/jakarta.activation-1.2.2.redhat-00002.jar"/>
+			<pathelement location="${jbossJarBase}/javax/annotation/api/main/jboss-annotations-api_1.3_spec-2.0.1.Final-redhat-00001.jar"/>
+			<pathelement location="${jbossJarBase}/javax/ejb/api/main/jboss-ejb-api_3.2_spec-2.0.0.Final-redhat-00001.jar"/>
+			<pathelement location="${jbossJarBase}/javax/annotation/api/main/jboss-annotations-api_1.3_spec-2.0.1.Final-redhat-00001.jar"/>
+			<pathelement location="${jbossJarBase}/.overlays/layer-base-jboss-eap-7.4.12.CP/javax/el/api/main/jboss-el-api_3.0_spec-2.0.1.Final-redhat-00001.jar"/>
+			<pathelement location="${jbossJarBase}/javax/enterprise/api/main/jakarta.enterprise.cdi-api-2.0.2.redhat-00002.jar"/>
+			<pathelement location="${jbossJarBase}/.overlays/layer-base-jboss-eap-7.4.12.CP/javax/faces/api/main/jboss-jsf-api_2.3_spec-3.0.0.SP07-redhat-00001.jar"/>
+			<pathelement location="${jbossJarBase}/javax/inject/api/main/jakarta.inject-api-1.0.3.redhat-00001.jar"/>
+			<pathelement location="${jbossJarBase}/javax/interceptor/api/main/jboss-interceptors-api_1.2_spec-2.0.0.Final-redhat-00002.jar"/>
+			<pathelement location="${jbossJarBase}/javax/jms/api/main/jboss-jms-api_2.0_spec-2.0.0.Final-redhat-00001.jar"/>
+			<pathelement location="${jbossJarBase}/javax/jws/api/main/jsr181-api-1.0.0.MR1-redhat-8.jar"/>
+			<pathelement location="${jbossJarBase}/.overlays/layer-base-jboss-eap-7.4.12.CP/javax/mail/api/main/jakarta.mail-1.6.7.redhat-00003.jar"/>
+			<pathelement location="${jbossJarBase}/javax/management/j2ee/api/main/jboss-j2eemgmt-api_1.1_spec-2.0.0.Final-redhat-00001.jar"/>
+			<pathelement location="${jbossJarBase}/javax/persistence/api/main/jakarta.persistence-api-2.2.3.redhat-00001.jar"/>
+			<pathelement location="${jbossJarBase}/javax/resource/api/main/jboss-connector-api_1.7_spec-2.0.0.Final-redhat-00001.jar"/>
+			<pathelement location="${jbossJarBase}/javax/security/auth/message/api/main/jboss-jaspi-api_1.1_spec-2.0.1.Final-redhat-00001.jar"/>
+			<pathelement location="${jbossJarBase}/javax/security/jacc/api/main/jboss-jacc-api_1.5_spec-2.0.0.Final-redhat-00001.jar"/>
+			<pathelement location="${jbossJarBase}/javax/servlet/api/main/jboss-servlet-api_4.0_spec-2.0.0.Final-redhat-00001.jar"/>
+			<pathelement location="${jbossJarBase}/javax/servlet/jsp/api/main/jboss-jsp-api_2.3_spec-2.0.0.Final-redhat-00001.jar"/>
+			<pathelement location="${jbossJarBase}/javax/servlet/jstl/api/main/taglibs-standard-compat-1.2.6.RC1-redhat-1.jar"/>
+			<pathelement location="${jbossJarBase}/javax/servlet/jstl/api/main/taglibs-standard-impl-1.2.6.RC1-redhat-1.jar"/>
+			<pathelement location="${jbossJarBase}/javax/servlet/jstl/api/main/taglibs-standard-spec-1.2.6.RC1-redhat-1.jar"/>
+			<pathelement location="${jbossJarBase}/javax/transaction/api/main/jboss-transaction-api_1.3_spec-2.0.0.Final-redhat-00005.jar"/>
+			<pathelement location="${jbossJarBase}/javax/validation/api/main/jakarta.validation-api-2.0.2.redhat-00001.jar"/>
+			<pathelement location="${jbossJarBase}/javax/ws/rs/api/main/jboss-jaxrs-api_2.1_spec-2.0.1.Final-redhat-00001.jar"/>
+			<pathelement location="${jbossJarBase}/javax/wsdl4j/api/main/wsdl4j-1.6.3.redhat-2.jar"/>
+			<pathelement location="${jbossJarBase}/javax/xml/bind/api/main/jboss-jaxb-api_2.3_spec-2.0.1.Final-redhat-00001.jar"/>
+			<pathelement location="${jbossJarBase}/javax/xml/rpc/api/main/jboss-jaxrpc-api_1.1_spec-2.0.0.Final-redhat-00001.jar"/>
+			<pathelement location="${jbossJarBase}/javax/xml/soap/api/main/jboss-saaj-api_1.3_spec-1.0.6.Final-redhat-1.jar"/>
+			<pathelement location="${jbossJarBase}/javax/xml/soap/api/main/jboss-saaj-api_1.4_spec-1.0.2.Final-redhat-00002.jar"/>
+			<pathelement location="${jbossJarBase}/javax/xml/ws/api/main/jboss-jaxws-api_2.3_spec-2.0.0.Final-redhat-00001.jar"/>
+			<pathelement location="${jbossJarBase}/.overlays/layer-base-jboss-eap-7.4.12.CP/org/hibernate/validator/main/hibernate-validator-6.0.23.Final-redhat-00001.jar"/>
+			<pathelement location="${jbossJarBase}/.overlays/layer-base-jboss-eap-7.4.12.CP/org/picketbox/main/picketbox-5.0.3.Final-redhat-00009.jar"/>
+			<pathelement location="${jbossJarBase}/.overlays/layer-base-jboss-eap-7.4.12.CP/org/picketbox/main/picketbox-commons-1.0.0.final-redhat-5.jar"/>
+			<pathelement location="${jbossJarBase}/.overlays/layer-base-jboss-eap-7.4.12.CP/org/picketbox/main/picketbox-infinispan-5.0.3.Final-redhat-00009.jar"/>
+			<pathelement location="${jbossJarBase}/.overlays/layer-base-jboss-eap-7.4.12.CP/org/jboss/as/controller-client/main/wildfly-controller-client-15.0.29.Final-redhat-00001.jar"/>
+			<pathelement location="${jbossJarBase}/org/jboss/dmr/main/jboss-dmr-1.5.1.Final-redhat-00001.jar"/>
+			<pathelement location="${jbossJarBase}/org/jboss/logging/main/jboss-logging-3.4.1.Final-redhat-00001.jar"/>
+			<pathelement location="${jbossJarBase}/.overlays/layer-base-jboss-eap-7.4.12.CP/org/jboss/resteasy/resteasy-jaxb-provider/main/resteasy-jaxb-provider-3.15.7.Final-redhat-00001.jar"/>
+			<pathelement location="${jbossJarBase}/.overlays/layer-base-jboss-eap-7.4.12.CP/org/jboss/resteasy/resteasy-jaxrs/main/resteasy-client-3.15.7.Final-redhat-00001.jar"/>
+			<pathelement location="${jbossJarBase}/.overlays/layer-base-jboss-eap-7.4.12.CP/org/jboss/resteasy/resteasy-jaxrs/main/resteasy-jaxrs-3.15.7.Final-redhat-00001.jar"/>
+			<pathelement location="${jbossJarBase}/.overlays/layer-base-jboss-eap-7.4.12.CP/org/jboss/resteasy/resteasy-multipart-provider/main/resteasy-multipart-provider-3.15.7.Final-redhat-00001.jar"/>
+			<pathelement location="${jbossJarBase}/org/jboss/ejb3/main/jboss-ejb3-ext-api-2.3.0.Final-redhat-00001.jar"/>
+			<pathelement location="${jbossJarBase}/javax/batch/api/main/jboss-batch-api_1.0_spec-2.0.0.Final-redhat-00001.jar"/>
+			<pathelement location="${jbossJarBase}/javax/enterprise/concurrent/api/main/jboss-concurrency-api_1.0_spec-2.0.0.Final-redhat-00001.jar"/>
+			<pathelement location="${jbossJarBase}/javax/websocket/api/main/jboss-websocket-api_1.1_spec-2.0.0.Final-redhat-00001.jar"/>
+			<pathelement location="${jbossJarBase}/javax/json/api/main/jakarta.json-api-1.1.6.redhat-00001.jar"/>
+			<pathelement location="${jbossJarBase}/org/wildfly/common/main/wildfly-common-1.5.4.Final-redhat-00001.jar"/>
+			<pathelement location="${jbossJarBase}/.overlays/layer-base-jboss-eap-7.4.12.CP/org/wildfly/security/elytron-private/main/wildfly-elytron-asn1-1.15.17.Final-redhat-00001.jar"/>
+			<pathelement location="${jbossJarBase}/.overlays/layer-base-jboss-eap-7.4.12.CP/org/wildfly/security/elytron-private/main/wildfly-elytron-audit-1.15.17.Final-redhat-00001.jar"/>
+			<pathelement location="${jbossJarBase}/.overlays/layer-base-jboss-eap-7.4.12.CP/org/wildfly/security/elytron-private/main/wildfly-elytron-auth-1.15.17.Final-redhat-00001.jar"/>
+			<pathelement location="${jbossJarBase}/.overlays/layer-base-jboss-eap-7.4.12.CP/org/wildfly/security/elytron-private/main/wildfly-elytron-auth-server-1.15.17.Final-redhat-00001.jar"/>
+			<pathelement location="${jbossJarBase}/.overlays/layer-base-jboss-eap-7.4.12.CP/org/wildfly/security/elytron-private/main/wildfly-elytron-auth-server-deprecated-1.15.17.Final-redhat-00001.jar"/>
+			<pathelement location="${jbossJarBase}/.overlays/layer-base-jboss-eap-7.4.12.CP/org/wildfly/security/elytron-private/main/wildfly-elytron-auth-server-http-1.15.17.Final-redhat-00001.jar"/>
+			<pathelement location="${jbossJarBase}/.overlays/layer-base-jboss-eap-7.4.12.CP/org/wildfly/security/elytron-private/main/wildfly-elytron-auth-server-sasl-1.15.17.Final-redhat-00001.jar"/>
+			<pathelement location="${jbossJarBase}/.overlays/layer-base-jboss-eap-7.4.12.CP/org/wildfly/security/elytron-private/main/wildfly-elytron-auth-util-1.15.17.Final-redhat-00001.jar"/>
+			<pathelement location="${jbossJarBase}/.overlays/layer-base-jboss-eap-7.4.12.CP/org/wildfly/security/elytron-private/main/wildfly-elytron-base-1.15.17.Final-redhat-00001.jar"/>
+			<pathelement location="${jbossJarBase}/.overlays/layer-base-jboss-eap-7.4.12.CP/org/wildfly/security/elytron-private/main/wildfly-elytron-client-1.15.17.Final-redhat-00001.jar"/>
+			<pathelement location="${jbossJarBase}/.overlays/layer-base-jboss-eap-7.4.12.CP/org/wildfly/security/elytron-private/main/wildfly-elytron-credential-1.15.17.Final-redhat-00001.jar"/>
+			<pathelement location="${jbossJarBase}/.overlays/layer-base-jboss-eap-7.4.12.CP/org/wildfly/security/elytron-private/main/wildfly-elytron-credential-source-deprecated-1.15.17.Final-redhat-00001.jar"/>
+			<pathelement location="${jbossJarBase}/.overlays/layer-base-jboss-eap-7.4.12.CP/org/wildfly/security/elytron-private/main/wildfly-elytron-credential-source-impl-1.15.17.Final-redhat-00001.jar"/>
+			<pathelement location="${jbossJarBase}/.overlays/layer-base-jboss-eap-7.4.12.CP/org/wildfly/security/elytron-private/main/wildfly-elytron-credential-store-1.15.17.Final-redhat-00001.jar"/>
+			<pathelement location="${jbossJarBase}/.overlays/layer-base-jboss-eap-7.4.12.CP/org/wildfly/security/elytron-private/main/wildfly-elytron-digest-1.15.17.Final-redhat-00001.jar"/>
+			<pathelement location="${jbossJarBase}/.overlays/layer-base-jboss-eap-7.4.12.CP/org/wildfly/security/elytron-private/main/wildfly-elytron-encryption-1.15.17.Final-redhat-00001.jar"/>
+			<pathelement location="${jbossJarBase}/.overlays/layer-base-jboss-eap-7.4.12.CP/org/wildfly/security/elytron-private/main/wildfly-elytron-http-1.15.17.Final-redhat-00001.jar"/>
+			<pathelement location="${jbossJarBase}/.overlays/layer-base-jboss-eap-7.4.12.CP/org/wildfly/security/elytron-private/main/wildfly-elytron-http-basic-1.15.17.Final-redhat-00001.jar"/>
+			<pathelement location="${jbossJarBase}/.overlays/layer-base-jboss-eap-7.4.12.CP/org/wildfly/security/elytron-private/main/wildfly-elytron-http-bearer-1.15.17.Final-redhat-00001.jar"/>
+			<pathelement location="${jbossJarBase}/.overlays/layer-base-jboss-eap-7.4.12.CP/org/wildfly/security/elytron-private/main/wildfly-elytron-http-cert-1.15.17.Final-redhat-00001.jar"/>
+			<pathelement location="${jbossJarBase}/.overlays/layer-base-jboss-eap-7.4.12.CP/org/wildfly/security/elytron-private/main/wildfly-elytron-http-deprecated-1.15.17.Final-redhat-00001.jar"/>
+			<pathelement location="${jbossJarBase}/.overlays/layer-base-jboss-eap-7.4.12.CP/org/wildfly/security/elytron-private/main/wildfly-elytron-http-digest-1.15.17.Final-redhat-00001.jar"/>
+			<pathelement location="${jbossJarBase}/.overlays/layer-base-jboss-eap-7.4.12.CP/org/wildfly/security/elytron-private/main/wildfly-elytron-http-external-1.15.17.Final-redhat-00001.jar"/>
+			<pathelement location="${jbossJarBase}/.overlays/layer-base-jboss-eap-7.4.12.CP/org/wildfly/security/elytron-private/main/wildfly-elytron-http-form-1.15.17.Final-redhat-00001.jar"/>
+			<pathelement location="${jbossJarBase}/.overlays/layer-base-jboss-eap-7.4.12.CP/org/wildfly/security/elytron-private/main/wildfly-elytron-http-spnego-1.15.17.Final-redhat-00001.jar"/>
+			<pathelement location="${jbossJarBase}/.overlays/layer-base-jboss-eap-7.4.12.CP/org/wildfly/security/elytron-private/main/wildfly-elytron-http-sso-1.15.17.Final-redhat-00001.jar"/>
+			<pathelement location="${jbossJarBase}/.overlays/layer-base-jboss-eap-7.4.12.CP/org/wildfly/security/elytron-private/main/wildfly-elytron-http-util-1.15.17.Final-redhat-00001.jar"/>
+			<pathelement location="${jbossJarBase}/.overlays/layer-base-jboss-eap-7.4.12.CP/org/wildfly/security/elytron-private/main/wildfly-elytron-jacc-1.15.17.Final-redhat-00001.jar"/>
+			<pathelement location="${jbossJarBase}/.overlays/layer-base-jboss-eap-7.4.12.CP/org/wildfly/security/elytron-private/main/wildfly-elytron-jaspi-1.15.17.Final-redhat-00001.jar"/>
+			<pathelement location="${jbossJarBase}/.overlays/layer-base-jboss-eap-7.4.12.CP/org/wildfly/security/elytron-private/main/wildfly-elytron-json-util-1.15.17.Final-redhat-00001.jar"/>
+			<pathelement location="${jbossJarBase}/.overlays/layer-base-jboss-eap-7.4.12.CP/org/wildfly/security/elytron-private/main/wildfly-elytron-keystore-1.15.17.Final-redhat-00001.jar"/>
+			<pathelement location="${jbossJarBase}/.overlays/layer-base-jboss-eap-7.4.12.CP/org/wildfly/security/elytron-private/main/wildfly-elytron-mechanism-1.15.17.Final-redhat-00001.jar"/>
+			<pathelement location="${jbossJarBase}/.overlays/layer-base-jboss-eap-7.4.12.CP/org/wildfly/security/elytron-private/main/wildfly-elytron-mechanism-digest-1.15.17.Final-redhat-00001.jar"/>
+			<pathelement location="${jbossJarBase}/.overlays/layer-base-jboss-eap-7.4.12.CP/org/wildfly/security/elytron-private/main/wildfly-elytron-mechanism-gssapi-1.15.17.Final-redhat-00001.jar"/>
+			<pathelement location="${jbossJarBase}/.overlays/layer-base-jboss-eap-7.4.12.CP/org/wildfly/security/elytron-private/main/wildfly-elytron-mechanism-http-1.15.17.Final-redhat-00001.jar"/>
+			<pathelement location="${jbossJarBase}/.overlays/layer-base-jboss-eap-7.4.12.CP/org/wildfly/security/elytron-private/main/wildfly-elytron-mechanism-oauth2-1.15.17.Final-redhat-00001.jar"/>
+			<pathelement location="${jbossJarBase}/.overlays/layer-base-jboss-eap-7.4.12.CP/org/wildfly/security/elytron-private/main/wildfly-elytron-mechanism-scram-1.15.17.Final-redhat-00001.jar"/>
+			<pathelement location="${jbossJarBase}/.overlays/layer-base-jboss-eap-7.4.12.CP/org/wildfly/security/elytron-private/main/wildfly-elytron-password-impl-1.15.17.Final-redhat-00001.jar"/>
+			<pathelement location="${jbossJarBase}/.overlays/layer-base-jboss-eap-7.4.12.CP/org/wildfly/security/elytron-private/main/wildfly-elytron-permission-1.15.17.Final-redhat-00001.jar"/>
+			<pathelement location="${jbossJarBase}/.overlays/layer-base-jboss-eap-7.4.12.CP/org/wildfly/security/elytron-private/main/wildfly-elytron-provider-util-1.15.17.Final-redhat-00001.jar"/>
+			<pathelement location="${jbossJarBase}/.overlays/layer-base-jboss-eap-7.4.12.CP/org/wildfly/security/elytron-private/main/wildfly-elytron-realm-1.15.17.Final-redhat-00001.jar"/>
+			<pathelement location="${jbossJarBase}/.overlays/layer-base-jboss-eap-7.4.12.CP/org/wildfly/security/elytron-private/main/wildfly-elytron-realm-jdbc-1.15.17.Final-redhat-00001.jar"/>
+			<pathelement location="${jbossJarBase}/.overlays/layer-base-jboss-eap-7.4.12.CP/org/wildfly/security/elytron-private/main/wildfly-elytron-realm-ldap-1.15.17.Final-redhat-00001.jar"/>
+			<pathelement location="${jbossJarBase}/.overlays/layer-base-jboss-eap-7.4.12.CP/org/wildfly/security/elytron-private/main/wildfly-elytron-realm-token-1.15.17.Final-redhat-00001.jar"/>
+			<pathelement location="${jbossJarBase}/.overlays/layer-base-jboss-eap-7.4.12.CP/org/wildfly/security/elytron-private/main/wildfly-elytron-sasl-1.15.17.Final-redhat-00001.jar"/>
+			<pathelement location="${jbossJarBase}/.overlays/layer-base-jboss-eap-7.4.12.CP/org/wildfly/security/elytron-private/main/wildfly-elytron-sasl-anonymous-1.15.17.Final-redhat-00001.jar"/>
+			<pathelement location="${jbossJarBase}/.overlays/layer-base-jboss-eap-7.4.12.CP/org/wildfly/security/elytron-private/main/wildfly-elytron-sasl-auth-util-1.15.17.Final-redhat-00001.jar"/>
+			<pathelement location="${jbossJarBase}/.overlays/layer-base-jboss-eap-7.4.12.CP/org/wildfly/security/elytron-private/main/wildfly-elytron-sasl-deprecated-1.15.17.Final-redhat-00001.jar"/>
+			<pathelement location="${jbossJarBase}/.overlays/layer-base-jboss-eap-7.4.12.CP/org/wildfly/security/elytron-private/main/wildfly-elytron-sasl-digest-1.15.17.Final-redhat-00001.jar"/>
+			<pathelement location="${jbossJarBase}/.overlays/layer-base-jboss-eap-7.4.12.CP/org/wildfly/security/elytron-private/main/wildfly-elytron-sasl-entity-1.15.17.Final-redhat-00001.jar"/>
+			<pathelement location="${jbossJarBase}/.overlays/layer-base-jboss-eap-7.4.12.CP/org/wildfly/security/elytron-private/main/wildfly-elytron-sasl-external-1.15.17.Final-redhat-00001.jar"/>
+			<pathelement location="${jbossJarBase}/.overlays/layer-base-jboss-eap-7.4.12.CP/org/wildfly/security/elytron-private/main/wildfly-elytron-sasl-gs2-1.15.17.Final-redhat-00001.jar"/>
+			<pathelement location="${jbossJarBase}/.overlays/layer-base-jboss-eap-7.4.12.CP/org/wildfly/security/elytron-private/main/wildfly-elytron-sasl-gssapi-1.15.17.Final-redhat-00001.jar"/>
+			<pathelement location="${jbossJarBase}/.overlays/layer-base-jboss-eap-7.4.12.CP/org/wildfly/security/elytron-private/main/wildfly-elytron-sasl-localuser-1.15.17.Final-redhat-00001.jar"/>
+			<pathelement location="${jbossJarBase}/.overlays/layer-base-jboss-eap-7.4.12.CP/org/wildfly/security/elytron-private/main/wildfly-elytron-sasl-oauth2-1.15.17.Final-redhat-00001.jar"/>
+			<pathelement location="${jbossJarBase}/.overlays/layer-base-jboss-eap-7.4.12.CP/org/wildfly/security/elytron-private/main/wildfly-elytron-sasl-otp-1.15.17.Final-redhat-00001.jar"/>
+			<pathelement location="${jbossJarBase}/.overlays/layer-base-jboss-eap-7.4.12.CP/org/wildfly/security/elytron-private/main/wildfly-elytron-sasl-plain-1.15.17.Final-redhat-00001.jar"/>
+			<pathelement location="${jbossJarBase}/.overlays/layer-base-jboss-eap-7.4.12.CP/org/wildfly/security/elytron-private/main/wildfly-elytron-sasl-scram-1.15.17.Final-redhat-00001.jar"/>
+			<pathelement location="${jbossJarBase}/.overlays/layer-base-jboss-eap-7.4.12.CP/org/wildfly/security/elytron-private/main/wildfly-elytron-security-manager-1.15.17.Final-redhat-00001.jar"/>
+			<pathelement location="${jbossJarBase}/.overlays/layer-base-jboss-eap-7.4.12.CP/org/wildfly/security/elytron-private/main/wildfly-elytron-security-manager-action-1.15.17.Final-redhat-00001.jar"/>
+			<pathelement location="${jbossJarBase}/.overlays/layer-base-jboss-eap-7.4.12.CP/org/wildfly/security/elytron-private/main/wildfly-elytron-ssl-1.15.17.Final-redhat-00001.jar"/>
+			<pathelement location="${jbossJarBase}/.overlays/layer-base-jboss-eap-7.4.12.CP/org/wildfly/security/elytron-private/main/wildfly-elytron-util-1.15.17.Final-redhat-00001.jar"/>
+			<pathelement location="${jbossJarBase}/.overlays/layer-base-jboss-eap-7.4.12.CP/org/wildfly/security/elytron-private/main/wildfly-elytron-x500-1.15.17.Final-redhat-00001.jar"/>
+			<pathelement location="${jbossJarBase}/.overlays/layer-base-jboss-eap-7.4.12.CP/org/wildfly/security/elytron-private/main/wildfly-elytron-x500-cert-1.15.17.Final-redhat-00001.jar"/>
+			<pathelement location="${jbossJarBase}/.overlays/layer-base-jboss-eap-7.4.12.CP/org/wildfly/security/elytron-private/main/wildfly-elytron-x500-cert-acme-1.15.17.Final-redhat-00001.jar"/>
+			<pathelement location="${jbossJarBase}/.overlays/layer-base-jboss-eap-7.4.12.CP/org/wildfly/security/elytron-private/main/wildfly-elytron-x500-cert-util-1.15.17.Final-redhat-00001.jar"/>
+			<pathelement location="${jbossJarBase}/.overlays/layer-base-jboss-eap-7.4.12.CP/org/wildfly/security/elytron-private/main/wildfly-elytron-x500-deprecated-1.15.17.Final-redhat-00001.jar"/>
+			<pathelement location="${jbossJarBase}/.overlays/layer-base-jboss-eap-7.4.12.CP/org/wildfly/security/elytron-private/main/wildfly-elytron-x500-principal-1.15.17.Final-redhat-00001.jar"/>
+		</path>
+		<pathconvert property="jboss.classpath" refid="jbossClasspath"/>
+		<pathconvert property="chp.classpath" refid="maven.classpath"/>
+		<echo>The following step may take 50 to 60 seconds (while the Java compiler compiles various class)</echo>
+		<javac executable="${JDKLocation}/bin/javac" fork="yes" source="17" target="17" srcdir="src" destdir="bin/temporary-build-directory" encoding="utf-8" includeantruntime="no" nowarn="yes" debug="true">
+			<classpath>
+				<pathelement path="${jboss.classpath}"/>
+				<pathelement path="${chp.classpath}"/>
+			</classpath>
+			<exclude name="com/picdar/application/AssocPDFFixer/**" />
+			<exclude name="com/picdar/application/ExtractAssetInfo/**" />
+			<exclude name="com/picdar/application/PDFTransformer/**" />
+			<exclude name="com/picdar/application/TestHarness/**" />
+			<exclude name="com/picdar/servlet/ImageUpload/**" />
+			<exclude name="com/picdar/webservices/DeleteAdvert/**" />
+			<exclude name="com/picdar/webservices/ImageTransfer/**" />
+		</javac>
+		<copy todir="bin" verbose="false">
+			<fileset dir="bin/temporary-build-directory" includes="**"/>
+			<fileset dir="src" >
+				<exclude name="**/*.java"/>
+				<exclude name="com/picdar/application/TestHarness/**" />
+				<exclude name="com/picdar/application/PDFTransformer/**" />
+				<exclude name="com/picdar/webservices/DeleteAdvert/**" />
+				<exclude name="com/picdar/webservices/ImageTransfer/**" />
+				<exclude name="com/picdar/servlet/ImageUpload/**" />
+			</fileset>
+		</copy>
+		<delete dir="bin/temporary-build-directory" />
+	</target>
+	<target name="Finalise Release for JBoss" description="Finalise Release for JBoss">
+		<antcall target="Maven build" />
+		<antcall target="EchoVersionNumbers" />
+		<!--<input message="The CHPJS project must be updated before making a release. Have you done so?" validargs="Yes,No" addproperty="chpjs.updated" />
+		<fail message="Please update the CHPJS project and then run again.">
+			<condition>
+				<equals arg1="${chpjs.updated}" arg2="No" />
+			</condition>
+		</fail>
+		<antcall target="ConfirmVersionNumbers" />
+
+		<input message="About to backup the existing release directory. Have you made sure that your jBoss/WildFly is NOT running?" validargs="Yes,No" addproperty="jbossNotRunning" />
+		<fail message="Please ensure that jBoss/WildFly is NOT running and then run again.">
+			<condition>
+				<equals arg1="${jbossNotRunning}" arg2="No" />
+			</condition>
+		</fail>-->
+		<!-- preserve the existing release directory, a temporary one is made during the release process -->
+		<echo message="Backing up ${ReleaseDir}" />
+		<move file="${ReleaseDir}" todir="${BackupDir}" failonerror="false" overwrite="true" />
+		<mkdir dir="${ReleaseDir}" />
+		<RemoveProjectNameStaticString/>
+		<antcall target="Check for Java errors" />
+		<antcall target="Check for bad scripts" />
+		<antcall target="Release CHP Data" />
+		<antcall target="Release CHP" />
+		<antcall target="Release Guides (CHP and Portal)" />
+		<antcall target="Release CHPSysMgt" />
+		<antcall target="Release Guides (CHPSysMgt)" />
+		<antcall target="Release Storage" />
+		<antcall target="Release Tools" />
+		<antcall target="Release CMIS" />
+		<antcall target="Release CMIS Browser" />
+		<ant antfile="build-i18n.xml" target="Release i18n" />
+		<delete dir="${PackageReleaseDir}" />
+		<property name="outputpath" value="${PackageReleaseDir}/CHPApplications" />
+		<mkdir dir="${outputpath}" />
+		<delete file="${outputpath}/CHPApplications_${MediaMogul.Version}.jar"/>
+		<antcall target="Tokenise Properties">
+			<param name="PropsFolder" value="${outputpath}" />
+			<param name="SourceProps" value="release.properties" />
+			<param name="PropVersion" value="release" />
+			<param name="DestPropsFile" value="system.template.properties" />
+		</antcall>
+		<copy todir="${outputpath}">
+			<fileset dir="${ReleaseDir}">
+				<include name="CHP/**"/>
+				<include name="Storage/**"/>
+				<include name="CHPSysMgt/**"/>
+				<include name="CMIS/**"/>
+				<include name="Lucene/**"/>
+				<include name="Tools/**"/>
+				<include name="CHPData/stylesheets/**"/>
+				<include name="CHPData/fonts/**"/>
+				<include name="CHPData/po/**"/>
+				<include name="CHPData/initial-plugin/**"/>
+				<include name="CHPData/sample-plugin/**"/>
+				<include name="CHPData/esapi/**"/>
+			</fileset>
+			<fileset dir="Config" includes="logger_config.xml"/>
+		</copy>
+		<copy todir="${PackageReleaseDir}">
+			<fileset dir="bin" includes="com/picdar/application/Installer/ApplicationInstaller.class"/>
+		</copy>
+		<!-- remove the J2E libraries from the tools as we don't ship as part of the build -->
+		<delete>
+			<fileset dir="${outputpath}/Tools/lib" includes="mail.jar,jboss-javaee.jar,servlet-api.jar" excludes="" />
+		</delete>
+		<antcall target="Release PO files for jBoss" />
+		<tstamp>
+			<format property="current.time" pattern="yyyy.MM.dd HH:mm:ss z" locale="en,UK" />
+		</tstamp>
+		<echo message="CHP installer build time logged at: ${current.time}"/>
+		<jar destfile="${PackageReleaseDir}/CHPApplications_${MediaMogul.Version}.jar">
+			<manifest>
+				<attribute name="Main-Class" value="com.picdar.application.Installer.ApplicationInstaller" />
+				<attribute name="Implementation-Vendor" value="OpenText"/>
+				<attribute name="Implementation-Title" value="com.opentext.installer.CHP"/>
+				<attribute name="Implementation-Version" value="${MediaMogul.Version}"/>
+				<attribute name="Build-Time" value="${current.time}"/>
+			</manifest>
+			<fileset dir="${PackageReleaseDir}" includes="CHPApplications/**"/>
+			<fileset dir="${PackageReleaseDir}" includes="com/**"/>
+		</jar>
+		<!-- make sure that the base is up to date, and copy it over -->
+		<antcall target="Make Base" />
+		<copy todir="${PackageReleaseDir}">
+			<fileset dir="${Base_ReleaseDir}">
+				<include name="CHP_${MediaMogul.Version}_Base.jar" />
+			</fileset>
+		</copy>
+		<echo message="Clearing temporary build folder ${outputpath}." />
+		<delete includeEmptyDirs="true">
+			<fileset dir="${outputpath}" includes="**" />
+			<fileset dir="${PackageReleaseDir}" includes="com/**"/>
+		</delete>
+		<!-- put the original directory back -->
+		<delete dir="${ReleaseDir}" />
+		<echo message="Restoring ${ReleaseDir}" />
+		<move file="${BackupDir}/${ApplicationsDir}" todir="${DeployDir}" failonerror="false" overwrite="true" />
+		<delete dir="${BackupDir}" />
+		<antcall target="Finalise Release of Standard Configuration" />
+		<antcall target="Release source code" />
+	</target>
+	<target name="Finalise Release of Standard Configuration" description="Finalise Release of Standard Configuration">
+		<mkdir dir="${StandardConfigPackageDir}" />
+		<foreach target="Standard Config Component Zip" list="Config/GroovyScripts,Config/Icons,Config/ListManager" param="ComponentDir" />
+		<foreach target="Standard Config Group" param="GroupDir">
+			<path>
+				<dirset dir="Config/Groups Released" >
+					<depth min="0" max="0"/>
+				</dirset>
+			</path>
+		</foreach>
+	</target>
+	<target name="ExtractPatch">
+		<echo message="Extracting:  ${Found.Version}" />
+		<unzip dest="${PackagePatchDir}" src="${Found.Version}" />
+		<echo message="Extraction completed:  ${Found.Version}" />
+	</target>
+	<target name="Finalise and build cumulative CHP patch" description="Finalise and build cumulative CHP patch" >
+		<antcall target="Maven build" />
+		<antcall target="EchoVersionNumbers" />
+		<antcall target="ConfirmVersionNumbers" />
+		<!-- Look for patches.  -->
+		<if>
+			<available file="Config/Patch/${MediaMogul.Version}" type="dir" />
+			<then>
+				<scriptdef name="GetMaxVersion" language="groovy">
+					<attribute name="patchpath"/>
+					<![CDATA[
+			def patchpath = attributes.get("patchpath");
+			def currentMaxVersion = -1;
+			def patchdir = new java.io.File(patchpath);
+
+			if (!patchdir.exists()) {
+				project.setProperty('Current.Patch.Version', '1');
+			} else {
+				def fs = project.createDataType("fileset");
+				fs.setDir(patchdir);
+				fs.setIncludes("**/*.jar");
+
+				// iterate over files found.
+				def srcFiles = fs.getDirectoryScanner(project).getIncludedFiles();
+				for (int i = 0; i < srcFiles.length; i++) {
+					def filename = srcFiles[i];
+					def lastDotIndex = filename.lastIndexOf('.');
+					if (lastDotIndex > 0) {
+						def dotBeforeLast = filename.lastIndexOf('.', lastDotIndex - 1);
+						def maxVersion = filename.substring(dotBeforeLast + 1, lastDotIndex - 2);
+						def intVersion = Integer.parseInt(maxVersion);
+						if (intVersion > currentMaxVersion) {
+							currentMaxVersion = intVersion;
+						}
+					}
+				}
+
+				if (currentMaxVersion <= 0) {
+					project.setProperty('Current.Patch.Version', '1');
+				} else {
+					project.setProperty('Current.Patch.Version', String.valueOf(currentMaxVersion));
+				}
+			}
+			self.log('Current.Patch.Version = ' + project.getProperty('Current.Patch.Version'));
+]]>
+				</scriptdef>
+				<GetMaxVersion patchpath="Config/Patch/${MediaMogul.Version}" />
+				<RemoveProjectNameStaticString/>
+				<property name="Patch.Version.Ask" value="${Current.Patch.Version}"/>
+				<!-- <input message="Cumulative patch version?" addproperty="Patch.Version.Ask" defaultvalue="${Current.Patch.Version}" /> -->
+				<echo message="Building patch version ${Patch.Version.Ask}" />
+				<scriptdef name="CheckVersion" language="groovy">
+					<![CDATA[
+			def propvalue = project.getProperty('Patch.Version.Ask');
+			// if we need to modify the version number in any way, do it here
+			project.setProperty('Patch.Version', propvalue);
+]]>
+				</scriptdef>
+				<CheckVersion />
+				<delete>
+					<fileset dir="${PackagePatchDir}/CHPApplications" includes="**" excludes="" />
+				</delete>
+				<foreach target="ExtractPatch" param="Found.Version">
+					<path>
+						<fileset dir="Config/Patch/${MediaMogul.Version}" casesensitive="yes">
+							<include name="**/*.jar"/>
+						</fileset>
+					</path>
+				</foreach>
+				<copy todir="${PackagePatchDir}">
+					<fileset dir="bin" includes="com/picdar/application/Installer/ApplicationInstaller.class"/>
+				</copy>
+				<tstamp>
+					<format property="current.time" pattern="yyyy.MM.dd HH:mm:ss z" locale="en,UK" />
+				</tstamp>
+				<jar destfile="${PackagePatchDir}/CHP_CumulativePatch_${MediaMogul.Version}.${Patch.Version}.jar">
+					<manifest>
+						<attribute name="Main-Class" value="com.picdar.application.Installer.ApplicationInstaller" />
+						<attribute name="Implementation-Vendor" value="OpenText"/>
+						<attribute name="Implementation-Title" value="com.opentext.core.CHP"/>
+						<attribute name="Implementation-Version" value="${MediaMogul.Version}.${Patch.Version.Ask}"/>
+						<attribute name="Build-Time" value="${current.time}"/>
+					</manifest>
+					<fileset dir="${PackagePatchDir}" includes="CHPApplications/**"/>
+					<fileset dir="${PackagePatchDir}" includes="com/**"/>
+				</jar>
+				<echo message="Clearing temporary build folder ${PackagePatchDir}." />
+				<delete includeEmptyDirs="true">
+					<fileset dir="${PackagePatchDir}" includes="com/**,META-INF/**"/>
+				</delete>
+			</then>
+			<else>
+				<echo message="Nothing to do - no patches found." />
+			</else>
+		</if>
+	</target>
+	<target name="Finalise and build CHP patch" description="Finalise and build CHP patch">
+		<antcall target="EchoVersionNumbers" />
+		<antcall target="ConfirmVersionNumbers" />
+		<scriptdef name="GetMaxVersion" language="groovy">
+			<attribute name="patchpath"/>
+			<![CDATA[
+			def patchpath = attributes.get("patchpath");
+			def currentMaxVersion = -1;
+			def patchdir = new java.io.File(patchpath);
+
+			if (!patchdir.exists()) {
+				project.setProperty('Next.Patch.Version', '1');
+			} else {
+				def fs = project.createDataType("fileset");
+				fs.setDir(patchdir);
+				fs.setIncludes("**/*.jar");
+
+				// iterate over files found.
+				def srcFiles = fs.getDirectoryScanner(project).getIncludedFiles();
+				for (int i = 0; i < srcFiles.length; i++) {
+					def filename = srcFiles[i];
+					def lastDotIndex = filename.lastIndexOf('.');
+					if (lastDotIndex > 0) {
+						def dotBeforeLast = filename.lastIndexOf('.', lastDotIndex - 1);
+						def maxVersion = filename.substring(dotBeforeLast + 1, lastDotIndex - 2);
+						def intVersion = Integer.parseInt(maxVersion);
+						if (intVersion > currentMaxVersion) {
+							currentMaxVersion = intVersion;
+						}
+					}
+				}
+
+				if (currentMaxVersion <= 0) {
+					project.setProperty('Next.Patch.Version', '1');
+				} else {
+					project.setProperty('Next.Patch.Version', String.valueOf(currentMaxVersion + 1));
+				}
+			}
+			self.log('Next.Patch.Version = ' + project.getProperty('Next.Patch.Version'));
+]]>
+		</scriptdef>
+		<GetMaxVersion patchpath="Config/Patch/${MediaMogul.Version}" />
+		<RemoveProjectNameStaticString/>
+		<property name="Patch.Version.Ask" value="2"/>
+		<!-- <input message="Patch version?" addproperty="Patch.Version.Ask" defaultvalue="${Next.Patch.Version}" />   -->
+		<echo message="Building patch version ${Patch.Version.Ask}" />
+		<scriptdef name="CheckVersion" language="groovy">
+			<![CDATA[
+			def propvalue = project.getProperty('Patch.Version.Ask');
+			def newPropValue = propvalue;
+			def dot_pos = propvalue.indexOf('.');
+
+			if (dot_pos > 0) {
+				// then it's a hotfix with two number parts
+				// if we need to modify the version number in any way, then do it here
+				project.setProperty('Patch.Version', propvalue);
+				project.setProperty('Patch.Type', 'Hotfix');
+			} else {
+				// if we need to modify the version number in any way, then do it here
+				project.setProperty('Patch.Version', propvalue);
+				project.setProperty('Patch.Type', 'Patch');
+			}
+]]>
+		</scriptdef>
+		<CheckVersion />
+		<property name="Build.Jar" value="Yes"/>
+		<property name="Plugin.Include" value="Yes"/>
+		<!-- <input message="Build the Core JAR?" addproperty="Build.Jar" defaultvalue="Yes" validargs="Yes,No"/> -->
+		<!-- <input message="Include plug-ins?" addproperty="Plugin.Include" defaultvalue="No" validargs="Yes,No"/> -->
+		<if>
+			<equals arg1="${Plugin.Include}" arg2="Yes" />
+			<then>
+				<zip destfile="${PackagePatchDir}/CHPApplications/CHPData/initial-plugin/plugin_${MediaMogul.Version}p${Patch.Version.Ask}.zip">
+					<fileset dir="CHP/Static/static/deployed_plugins" includes="**/*"/>
+				</zip>
+				<zip destfile="${PackagePatchDir}/CHPApplications/CHPData/sample-plugin/plugin_${MediaMogul.Version}p${Patch.Version.Ask}.zip">
+					<fileset dir="CHP/Static/static/sample_plugins" includes="**/*"/>
+				</zip>
+			</then>
+		</if>
+		<property name="admin.guide.updated" value="No"/>
+		<property name="product.guide.updated" value="No"/>
+		<!-- <input message="Has the admin guide been updated?" validargs="Yes,No" defaultvalue="No" addproperty="admin.guide.updated" />
+		<input message="Has the product guide been updated?" validargs="Yes,No" defaultvalue="No" addproperty="product.guide.updated" />
+-->
+		<property name="gitBackupFolder" value="C:/home/gitBackupFolder"/>
+		<if>
+			<available file="${gitBackupFolder}"/>
+			<then>
+				<echo message="Backup folder to restore files in the workspaces is ${gitBackupFolder}"/>
+			</then>
+			<else>
+				<echo message="Backup Folder is not available so creating ${gitBackupFolder}"/>
+				<mkdir dir="${gitBackupFolder}"/>
+			</else>
+		</if>
+		<scriptdef name="backupFiles" language="groovy">
+			<![CDATA[
+			self.log("Backup files");
+
+			def cmds = ["git diff --cached --name-only","git diff --name-only"];
+			for (int idx = 0; idx < cmds.size(); idx++) {
+				def srcdir = project.getProperty("WorkspaceDir") + "/" + project.getName();
+				def backupFolder = project.getProperty("gitBackupFolder");
+				def p = java.lang.Runtime.getRuntime().exec(cmds[idx]);
+				p.waitFor();
+				def line = null;
+				def isError = false;
+				def error = new java.io.BufferedReader(new java.io.InputStreamReader(p.getErrorStream()));
+				while ((line = error.readLine()) != null) {
+					self.log(line);
+					isError = true;
+				}
+				error.close();
+				if (isError) {
+					self.log("Error found during the restoring of staged files");
+					return;
+				}
+
+				def input = new java.io.BufferedReader(new java.io.InputStreamReader(p.getInputStream()));
+
+				while ((line = input.readLine()) != null) {
+					self.log(line);
+					if (line != null && line.length() > 0) {
+						def srcfile = line;
+						// Ensure srcfile and backupFolder are not null or empty
+						if (srcfile == null || backupFolder == null || srcfile.trim() == "" || backupFolder.trim() == "") {
+							throw new RuntimeException("Source file or backup folder path is null or empty.");
+						}
+
+						self.log("Copying file from " + srcfile + " to " + backupFolder);
+
+						def copyOptions = [java.nio.file.StandardCopyOption.REPLACE_EXISTING, java.nio.file.StandardCopyOption.COPY_ATTRIBUTES] as java.nio.file.CopyOption[];
+
+						// Get source path
+						def srcPath = java.nio.file.Paths.get(srcfile.toString());
+
+						// Check if source file exists
+						if (!java.nio.file.Files.exists(srcPath)) {
+							throw new RuntimeException("Source file does not exist: " + srcfile);
+						}
+
+						// Extract source directory, handle null case for root-level files
+						def srcDir = srcPath.getParent();
+						if (srcDir == null) {
+							self.log("Source file is located in the root directory.");
+							srcDir = java.nio.file.Paths.get("");
+						} else {
+							self.log("Source directory: " + srcDir);
+						}
+
+						// Get the destination directory path
+						def destDirPath = java.nio.file.Paths.get(backupFolder).resolve(srcDir.toString());
+
+						// Check if the destination directory exists, if not, create it
+						if (!java.nio.file.Files.exists(destDirPath)) {
+							self.log("Destination directory does not exist, creating: " + destDirPath);
+							java.nio.file.Files.createDirectories(destDirPath);
+						} else {
+							self.log("Destination directory already exists: " + destDirPath);
+						}
+
+						// Copy the file to the destination directory
+						java.nio.file.Files.copy(srcPath, destDirPath.resolve(srcPath.getFileName()), copyOptions);
+
+						self.log("File copied successfully!");
+					}
+				}
+				input.close();
+			}
+]]>
+		</scriptdef>
+		<scriptdef name="RemoveUnstagedFiles" language="groovy" classpathref="groovy.classpath">
+			<![CDATA[
+			self.log("Removing unstaged files");
+			def srcdir = project.getProperty("WorkspaceDir") + "/" + project.getName();
+			def p = java.lang.Runtime.getRuntime().exec("git restore " + srcdir);
+			p.waitFor();
+			def line = null;
+			def isError = false;
+			def error = new java.io.BufferedReader(new java.io.InputStreamReader(p.getErrorStream()));
+			while ((line = error.readLine()) != null) {
+				self.log(line);
+				isError = true;
+			}
+			error.close();
+			if (isError) {
+				self.log("Error found during the restoring of staged files");
+				throw new RuntimeException("Error restoring unstaged files");
+			}
+			self.log("Remove successful");
+]]>
+		</scriptdef>
+		<scriptdef name="RestoreStagedFiles" language="groovy" classpathref="groovy.classpath">
+			<![CDATA[
+			self.log("Restoring staged files");
+			def srcdir = project.getProperty("WorkspaceDir") + "/" + project.getName();
+			self.log(srcdir);
+			def p = java.lang.Runtime.getRuntime().exec("git restore -S " + srcdir);
+			p.waitFor();
+
+			def line = null;
+			def isError = false;
+			def error = new java.io.BufferedReader(new java.io.InputStreamReader(p.getErrorStream()));
+			while ((line = error.readLine()) != null) {
+				self.log(line);
+				isError = true;
+			}
+			error.close();
+			if (isError) {
+				self.log("Error found during the restoring of staged files");
+				throw new RuntimeException("Error restoring staged files");
+			}
+			self.log("Restore successful");
+]]>
+		</scriptdef>
+		<scriptdef name="GetModifiedFiles" language="groovy" classpathref="groovy.classpath">
+			<attribute name="srcdir"/>
+			<attribute name="dstdir"/>
+			<attribute name="filter"/>
+			<![CDATA[
+			def projName = project.getProperty("ant.project.name");
+			def srcdir = attributes.get("srcdir");
+			def dstdir = attributes.get("dstdir");
+			def opt_filter = attributes.get("filter");
+			def srcDirFile = new java.io.File(srcdir);
+			def isError = false;
+			if (srcDirFile.exists()) {
+				self.log("Source folder is:" + srcdir);
+				def p = java.lang.Runtime.getRuntime().exec("git diff --name-only");
+				p.waitFor();
+				def line = null;
+
+				def error = new java.io.BufferedReader(new java.io.InputStreamReader(p.getErrorStream()));
+				while ((line = error.readLine()) != null) {
+					self.log(line);
+					isError = true;
+				}
+				error.close();
+				if (isError) {
+					self.log("Error found while getting modified files");
+					return;
+				}
+
+				def input = new java.io.BufferedReader(new java.io.InputStreamReader(p.getInputStream()));
+				while ((line = input.readLine()) != null) {
+					self.log(line);
+					if (line != null && line.length() > 0) {
+						def fileName = line;
+						def fileObject = new java.io.File(fileName);
+						if (fileObject.exists() && fileObject.isFile()) {
+							def doWrite = true;
+							if (opt_filter != null && opt_filter.length() > 0) {
+								doWrite = fileName.matches(opt_filter);
+							}
+							if (doWrite) {
+								def dstFile = new java.io.File(dstdir, fileName);
+								self.log('Copy ' + fileObject + ' to the object ' + dstFile);
+
+								dstFile.getParentFile().mkdirs();
+
+								def source = new java.io.FileInputStream(fileObject).getChannel();
+								def destination = new java.io.FileOutputStream(dstFile).getChannel();
+								destination.transferFrom(source, 0, source.size());
+								source.close();
+								destination.close();
+							}
+						}
+					}
+				}
+				input.close();
+			}
+]]>
+		</scriptdef>
+		<!-- clear out CHPApplications before starting to make sure we get a clean set of changes -->
+		<delete dir="${PackagePatchDir}/CHPApplications" />
+		<backupFiles />
+		<RemoveUnstagedFiles />
+		<RestoreStagedFiles />
+		<GetModifiedFiles srcdir="CHP/CHP" dstdir="${PackagePatchDir}/CHPApplications/${CHPReleaseName}/${CHPReleaseName}.war"/>
+		<GetModifiedFiles srcdir="CHP/Static" dstdir="${PackagePatchDir}/CHPApplications/${CHPReleaseName}/${CHPReleaseName}.war"/>
+		<GetModifiedFiles srcdir="CHP/Resources" dstdir="${PackagePatchDir}/CHPApplications/${CHPReleaseName}/${CHPReleaseName}.war/WEB-INF/Resources"/>
+		<GetModifiedFiles srcdir="Config/Database" dstdir="${PackagePatchDir}/CHPApplications/${CHPReleaseName}/${CHPReleaseName}.war/WEB-INF/Resources"/>
+		<GetModifiedFiles srcdir="Shared/WEB-INF/Resources/Config" dstdir="${PackagePatchDir}/CHPApplications/${CHPReleaseName}/${CHPReleaseName}.war/WEB-INF/Resources/Config"/>
+		<GetModifiedFiles srcdir="Storage/Storage" dstdir="${PackagePatchDir}/CHPApplications/${StorageReleaseName}/${StorageReleaseName}.war"/>
+		<GetModifiedFiles srcdir="Storage/Static" dstdir="${PackagePatchDir}/CHPApplications/${StorageReleaseName}/${StorageReleaseName}.war"/>
+		<GetModifiedFiles srcdir="Storage/Resources" dstdir="${PackagePatchDir}/CHPApplications/${StorageReleaseName}/${StorageReleaseName}.war/WEB-INF/Resources"/>
+		<GetModifiedFiles srcdir="Config/Database" dstdir="${PackagePatchDir}/CHPApplications/${StorageReleaseName}/${StorageReleaseName}.war/WEB-INF/Resources"/>
+		<GetModifiedFiles srcdir="Shared/WEB-INF/Resources/Config" dstdir="${PackagePatchDir}/CHPApplications/${StorageReleaseName}/${StorageReleaseName}.war/WEB-INF/Resources/Config"/>
+		<GetModifiedFiles srcdir="CHPSysMgt/CHPSysMgt" dstdir="${PackagePatchDir}/CHPApplications/${CHPSysMgtReleaseName}/${CHPSysMgtReleaseName}.war"/>
+		<GetModifiedFiles srcdir="CHPSysMgt/Static" dstdir="${PackagePatchDir}/CHPApplications/${CHPSysMgtReleaseName}/${CHPSysMgtReleaseName}.war"/>
+		<GetModifiedFiles srcdir="CHPSysMgt/Resources" dstdir="${PackagePatchDir}/CHPApplications/${CHPSysMgtReleaseName}/${CHPSysMgtReleaseName}.war/WEB-INF/Resources"/>
+		<GetModifiedFiles srcdir="Config/Database" dstdir="${PackagePatchDir}/CHPApplications/${CHPSysMgtReleaseName}/${CHPSysMgtReleaseName}.war/WEB-INF/Resources"/>
+		<GetModifiedFiles srcdir="Shared/WEB-INF/Resources/Config" dstdir="${PackagePatchDir}/CHPApplications/${CHPSysMgtReleaseName}/${CHPSysMgtReleaseName}.war/WEB-INF/Resources/Config"/>
+		<!-- when building CHPSysMgt patch, also need to pull out any changed files with the CHPSysMgtIncluded comment from CHP -->
+		<GetModifiedFiles srcdir="CHP/CHP" dstdir="${PackagePatchDir}/CHPApplications/${CHPSysMgtReleaseName}/${CHPSysMgtReleaseName}.war" filter="CHPSysMgtIncluded" />
+		<GetModifiedFiles srcdir="CHP/Static" dstdir="${PackagePatchDir}/CHPApplications/${CHPSysMgtReleaseName}/${CHPSysMgtReleaseName}.war" filter="CHPSysMgtIncluded" />
+		<GetModifiedFiles srcdir="Tools/Resources" dstdir="${PackagePatchDir}/CHPApplications/Tools/Resources"/>
+		<GetModifiedFiles srcdir="Config/Database" dstdir="${PackagePatchDir}/CHPApplications/Tools/Resources"/>
+		<GetModifiedFiles srcdir="Shared/WEB-INF/Resources/Config" dstdir="${PackagePatchDir}/CHPApplications/Tools/Resources/Config"/>
+		<GetModifiedFiles srcdir="CMIS/CMIS" dstdir="${PackagePatchDir}/CHPApplications/${CMISReleaseName}/${CMISReleaseName}.war"/>
+		<GetModifiedFiles srcdir="CMIS/Resources" dstdir="${PackagePatchDir}/CHPApplications/${CMISReleaseName}/${CMISReleaseName}.war/WEB-INF/Resources"/>
+		<GetModifiedFiles srcdir="Config/Database" dstdir="${PackagePatchDir}/CHPApplications/${CMISReleaseName}/${CMISReleaseName}.war/WEB-INF/Resources"/>
+		<GetModifiedFiles srcdir="Shared/WEB-INF/Resources/Config" dstdir="${PackagePatchDir}/CHPApplications/${CMISReleaseName}/${CMISReleaseName}.war/WEB-INF/Resources/Config"/>
+		<!-- Copy CHP-and-SystemManagement-shared files to CHP and CHPSysMgt -->
+		<!-- CHP -->
+		<GetModifiedFiles srcdir="CHP-and-SystemManagement-shared/javascript" dstdir="${PackagePatchDir}/CHPApplications/${CHPReleaseName}/${CHPReleaseName}.war/static/javascript"/>
+		<GetModifiedFiles srcdir="CHP-and-SystemManagement-shared/images" dstdir="${PackagePatchDir}/CHPApplications/${CHPReleaseName}/${CHPReleaseName}.war/static/images"/>
+		<GetModifiedFiles srcdir="CHP-and-SystemManagement-shared/JSP" dstdir="${PackagePatchDir}/CHPApplications/${CHPReleaseName}/${CHPReleaseName}.war/JSP"/>
+		<!-- CHPSysMgt -->
+		<GetModifiedFiles srcdir="CHP-and-SystemManagement-shared/javascript" dstdir="${PackagePatchDir}/CHPApplications/${CHPSysMgtReleaseName}/${CHPSysMgtReleaseName}.war/static/javascript"/>
+		<GetModifiedFiles srcdir="CHP-and-SystemManagement-shared/images" dstdir="${PackagePatchDir}/CHPApplications/${CHPSysMgtReleaseName}/${CHPSysMgtReleaseName}.war/static/images"/>
+		<GetModifiedFiles srcdir="CHP-and-SystemManagement-shared/JSP" dstdir="${PackagePatchDir}/CHPApplications/${CHPSysMgtReleaseName}/${CHPSysMgtReleaseName}.war/JSP"/>
+		<if>
+			<equals arg1="${admin.guide.updated}" arg2="Yes" />
+			<then>
+				<mkdir dir="${PackagePatchDir}/CHPApplications/${CHPSysMgtReleaseName}/${CHPSysMgtReleaseName}.war/static/guides" />
+				<unzip dest="${PackagePatchDir}/CHPApplications/${CHPSysMgtReleaseName}/${CHPSysMgtReleaseName}.war/static/guides" src="Config/Guides/implementation/implementation.zip" />
+			</then>
+		</if>
+		<if>
+			<equals arg1="${product.guide.updated}" arg2="Yes" />
+			<then>
+				<mkdir dir="${PackagePatchDir}/CHPApplications/${CHPReleaseName}/${CHPReleaseName}.war/static/guides" />
+				<unzip dest="${PackagePatchDir}/CHPApplications/${CHPReleaseName}/${CHPReleaseName}.war/static/guides" src="Config/Guides/product/product.zip" />
+			</then>
+		</if>
+		<!-- Copy Version.xml into place.  -->
+		<if>
+			<equals arg1="${Patch.Type}" arg2="Patch" />
+			<then>
+				<mkdir dir="${PackagePatchDir}/CHPApplications/${CHPReleaseName}/${CHPReleaseName}.war/WEB-INF/Resources/Config/" />
+				<delete file="${PackagePatchDir}/CHPApplications/${CHPReleaseName}/${CHPReleaseName}.war/WEB-INF/Resources/Config/Version.xml" />
+				<copy file="CHP/Resources/Config/Version.xml" todir="${PackagePatchDir}/CHPApplications/${CHPReleaseName}/${CHPReleaseName}.war/WEB-INF/Resources/Config" />
+				<mkdir dir="${PackagePatchDir}/CHPApplications/${CHPSysMgtReleaseName}/${CHPSysMgtReleaseName}.war/WEB-INF/Resources/Config/" />
+				<delete file="${PackagePatchDir}/CHPApplications/${CHPSysMgtReleaseName}/${CHPSysMgtReleaseName}.war/WEB-INF/Resources/Config/Version.xml" />
+				<copy file="CHPSysMgt/Resources/Config/Version.xml" todir="${PackagePatchDir}/CHPApplications/${CHPSysMgtReleaseName}/${CHPSysMgtReleaseName}.war/WEB-INF/Resources/Config" />
+				<mkdir dir="${PackagePatchDir}/CHPApplications/${CMISReleaseName}/${CMISReleaseName}.war/WEB-INF/Resources/Config/" />
+				<delete file="${PackagePatchDir}/CHPApplications/${CMISReleaseName}/${CMISReleaseName}.war/WEB-INF/Resources/Config/Version.xml" />
+				<copy file="CMIS/Resources/Config/Version.xml" todir="${PackagePatchDir}/CHPApplications/${CMISReleaseName}/${CMISReleaseName}.war/WEB-INF/Resources/Config" />
+				<mkdir dir="${PackagePatchDir}/CHPApplications/${StorageReleaseName}/${StorageReleaseName}.war/WEB-INF/Resources/Config/" />
+				<delete file="${PackagePatchDir}/CHPApplications/${StorageReleaseName}/${StorageReleaseName}.war/WEB-INF/Resources/Config/Version.xml" />
+				<copy file="Storage/Resources/Config/Version.xml" todir="${PackagePatchDir}/CHPApplications/${StorageReleaseName}/${StorageReleaseName}.war/WEB-INF/Resources/Config" />
+				<mkdir dir="${PackagePatchDir}/CHPApplications/Tools/Resources/Config/" />
+				<delete file="${PackagePatchDir}/CHPApplications/Tools/Resources/Config/Version.xml" />
+				<copy file="Tools/Resources/Config/Version.xml" todir="${PackagePatchDir}/CHPApplications/Tools/Resources/Config" />
+			</then>
+		</if>
+		<!-- Copy patch description file across -->
+		<property name="Patch.Info.Filename" value="CHP_${Patch.Type}_${MediaMogul.Version}.${Patch.Version}.html"/>
+		<!-- fail if patch description doesn't exist -->
+		<fail message="The patch/hotfix information file ${Patch.Info.Filename} could not be found. Please create it and build the patch/hotfix again.">
+			<condition>
+				<not>
+					<available file="Config/Patch/${MediaMogul.Version}/${Patch.Info.Filename}" />
+				</not>
+			</condition>
+		</fail>
+		<!-- Copy CHP.jar into place.  -->
+		<if>
+			<equals arg1="${Build.Jar}" arg2="Yes" />
+			<then>
+				<!-- force a rebuild of the JAR just in case... -->
+				<antcall target="Build CHP Core Jar" />
+				<!-- we just put a single copy of the (large) JAR file in - the installer then copies it out -->
+				<!-- we just do this to make installer files much smaller -->
+				<mkdir dir="${PackagePatchDir}/CHPApplications/Tools/lib/" />
+				<delete file="${PackagePatchDir}/CHPApplications/Tools/lib/CHP_Core.jar" />
+				<copy file="bin/CHP_Core.jar" todir="${PackagePatchDir}/CHPApplications/Tools/lib" />
+			</then>
+		</if>
+		<!-- if a full patch, then set the version number -->
+		<if>
+			<equals arg1="${Patch.Type}" arg2="Patch" />
+			<then>
+				<replace dir="${PackagePatchDir}/CHPApplications/${CHPReleaseName}/${CHPReleaseName}.war/WEB-INF/Resources/Config" value="${MediaMogul.Version}">
+					<include name="**/Version.xml" />
+					<replacetoken>
+						<![CDATA[${MediaMogul.Version}]]>
+					</replacetoken>
+				</replace>
+				<replace dir="${PackagePatchDir}/CHPApplications/${CHPReleaseName}/${CHPReleaseName}.war/WEB-INF/Resources/Config" value="${Patch.Version.Ask}">
+					<include name="**/Version.xml" />
+					<replacetoken>
+						<![CDATA[${Patch.Version}]]>
+					</replacetoken>
+				</replace>
+				<replace dir="${PackagePatchDir}/CHPApplications/${CHPReleaseName}/${CHPReleaseName}.war/WEB-INF/Resources/Config" value="${StaticString}">
+					<include name="**/Version.xml" />
+					<replacetoken>
+						<![CDATA[${Developer.ProjectName}]]>
+					</replacetoken>
+				</replace>
+				<replace dir="${PackagePatchDir}/CHPApplications/${CHPSysMgtReleaseName}/${CHPSysMgtReleaseName}.war/WEB-INF/Resources/Config" value="${MediaMogul.Version}">
+					<include name="**/Version.xml" />
+					<replacetoken>
+						<![CDATA[${MediaMogul.Version}]]>
+					</replacetoken>
+				</replace>
+				<replace dir="${PackagePatchDir}/CHPApplications/${CHPSysMgtReleaseName}/${CHPSysMgtReleaseName}.war/WEB-INF/Resources/Config" value="${Patch.Version.Ask}">
+					<include name="**/Version.xml" />
+					<replacetoken>
+						<![CDATA[${Patch.Version}]]>
+					</replacetoken>
+				</replace>
+				<replace dir="${PackagePatchDir}/CHPApplications/${CHPSysMgtReleaseName}/${CHPSysMgtReleaseName}.war/WEB-INF/Resources/Config" value="${Patch.Version.Ask}">
+					<include name="**/Version.xml" />
+					<replacetoken>
+						<![CDATA[${Developer.ProjectName}]]>
+					</replacetoken>
+				</replace>
+				<replace dir="${PackagePatchDir}/CHPApplications/${CMISReleaseName}/${CMISReleaseName}.war/WEB-INF/Resources/Config" value="${MediaMogul.Version}">
+					<include name="**/Version.xml" />
+					<replacetoken>
+						<![CDATA[${MediaMogul.Version}]]>
+					</replacetoken>
+				</replace>
+				<replace dir="${PackagePatchDir}/CHPApplications/${CMISReleaseName}/${CMISReleaseName}.war/WEB-INF/Resources/Config" value="${Patch.Version.Ask}">
+					<include name="**/Version.xml" />
+					<replacetoken>
+						<![CDATA[${Patch.Version}]]>
+					</replacetoken>
+				</replace>
+				<replace dir="${PackagePatchDir}/CHPApplications/${CMISReleaseName}/${CMISReleaseName}.war/WEB-INF/Resources/Config" value="${Patch.Version.Ask}">
+					<include name="**/Version.xml" />
+					<replacetoken>
+						<![CDATA[${Developer.ProjectName}]]>
+					</replacetoken>
+				</replace>
+				<replace dir="${PackagePatchDir}/CHPApplications/${StorageReleaseName}/${StorageReleaseName}.war/WEB-INF/Resources/Config" value="${MediaMogul.Version}">
+					<include name="**/Version.xml" />
+					<replacetoken>
+						<![CDATA[${MediaMogul.Version}]]>
+					</replacetoken>
+				</replace>
+				<replace dir="${PackagePatchDir}/CHPApplications/${StorageReleaseName}/${StorageReleaseName}.war/WEB-INF/Resources/Config" value="${Patch.Version.Ask}">
+					<include name="**/Version.xml" />
+					<replacetoken>
+						<![CDATA[${Patch.Version}]]>
+					</replacetoken>
+				</replace>
+				<replace dir="${PackagePatchDir}/CHPApplications/${StorageReleaseName}/${StorageReleaseName}.war/WEB-INF/Resources/Config" value="${Patch.Version.Ask}">
+					<include name="**/Version.xml" />
+					<replacetoken>
+						<![CDATA[${Developer.ProjectName}]]>
+					</replacetoken>
+				</replace>
+				<replace dir="${PackagePatchDir}/CHPApplications/Tools/Resources/Config" value="${MediaMogul.Version}">
+					<include name="**/Version.xml" />
+					<replacetoken>
+						<![CDATA[${MediaMogul.Version}]]>
+					</replacetoken>
+				</replace>
+				<replace dir="${PackagePatchDir}/CHPApplications/Tools/Resources/Config" value="${Patch.Version.Ask}">
+					<include name="**/Version.xml" />
+					<replacetoken>
+						<![CDATA[${Patch.Version}]]>
+					</replacetoken>
+				</replace>
+				<replace dir="${PackagePatchDir}/CHPApplications/Tools/Resources/Config" value="${Patch.Version.Ask}">
+					<include name="**/Version.xml" />
+					<replacetoken>
+						<![CDATA[${Developer.ProjectName}]]>
+					</replacetoken>
+				</replace>
+			</then>
+		</if>
+		<copy todir="${PackagePatchDir}">
+			<fileset dir="bin" includes="com/picdar/application/Installer/ApplicationInstaller.class"/>
+		</copy>
+		<tstamp>
+			<format property="current.time" pattern="yyyy.MM.dd HH:mm:ss z" locale="en,UK" />
+		</tstamp>
+		<!--
+		taken this out for now, as we build patches using the new plugin based format that covers both installation approaches
+		<jar destfile="${PackagePatchDir}/CHP_${Patch.Type}_${MediaMogul.Version}.${Patch.Version}.jar">
+			<manifest>
+				<attribute name="Main-Class" value="com.picdar.application.Installer.ApplicationInstaller" />
+				<attribute name="Implementation-Vendor" value="OpenText"/>
+				<attribute name="Implementation-Title" value="com.opentext.core.CHP"/>
+				<attribute name="Implementation-Version" value="${MediaMogul.Version}.${Patch.Version.Ask}"/>
+				<attribute name="Build-Time" value="${current.time}"/>
+			</manifest>
+			<fileset dir="${PackagePatchDir}" includes="CHPApplications/**"/>
+			<fileset dir="${PackagePatchDir}" includes="com/**"/>
+		</jar>
+		-->
+		<echo message="Clearing temporary build folder ${PackagePatchDir}." />
+		<delete includeEmptyDirs="true">
+			<fileset dir="${PackagePatchDir}" includes="com/**"/>
+		</delete>
+		<!-- package the patch files as a plugin -->
+		<property name="Plugin.Code" value="UPDT"/>
+		<property name="Plugin.Base" value="${PackagePatchDir}/CHP_${Patch.Type}_${MediaMogul.Version}.${Patch.Version}"/>
+		<delete dir="${Plugin.Base}" />
+		<mkdir dir="${Plugin.Base}/${Plugin.Code}/CHP_${Patch.Type}_${MediaMogul.Version}.${Patch.Version}" />
+		<mkdir dir="${Plugin.Base}/${Plugin.Code}/CHP_${Patch.Type}_${MediaMogul.Version}.${Patch.Version}/CHPApplications" />
+		<copy todir="${Plugin.Base}/${Plugin.Code}/CHP_${Patch.Type}_${MediaMogul.Version}.${Patch.Version}/CHPApplications">
+			<fileset dir="${PackagePatchDir}/CHPApplications" />
+		</copy>
+		<copy file="Config/Patch/${MediaMogul.Version}/${Patch.Info.Filename}" tofile="${Plugin.Base}/${Plugin.Code}/CHP_${Patch.Type}_${MediaMogul.Version}.${Patch.Version}/description.html" />
+		<!-- build a checksum for the files -->
+		<!-- this is used so we can tell if individual files are later modified -->
+		<checksum algorithm="MD5" todir="${Plugin.Base}/${Plugin.Code}/CHP_${Patch.Type}_${MediaMogul.Version}.${Patch.Version}/md5" pattern="{0} - {3}">
+			<fileset dir="${Plugin.Base}/${Plugin.Code}/CHP_${Patch.Type}_${MediaMogul.Version}.${Patch.Version}" />
+		</checksum>
+		<concat destfile="${Plugin.Base}/${Plugin.Code}/CHP_${Patch.Type}_${MediaMogul.Version}.${Patch.Version}/CHPApplications/PatchInfo/DIGEST.txt">
+			<fileset dir="${Plugin.Base}/${Plugin.Code}/CHP_${Patch.Type}_${MediaMogul.Version}.${Patch.Version}/md5" />
+		</concat>
+		<delete dir="${Plugin.Base}/${Plugin.Code}/CHP_${Patch.Type}_${MediaMogul.Version}.${Patch.Version}/md5" />
+		<!-- copy the installer code -->
+		<copy todir="${Plugin.Base}">
+			<fileset dir="bin" includes="com/picdar/application/Installer/ApplicationInstaller.class"/>
+		</copy>
+		<!-- copy the database libraries for the installer to use -->
+		<!-- THESE PATHS SHOULD BE CHANGED IF THE DATABASE LIBRARIES ARE UPDATED, ALONG WITH THE Class-Path MANIFEST TAG FURTHER DOWN -->
+		<mkdir dir="${Plugin.Base}/lib" />
+		<copy todir="${Plugin.Base}/lib" flatten="true">
+			<fileset dir="lib" includes="postgres/42.5.0/postgresql-42.5.0.jar"/>
+			<fileset dir="lib" includes="Oracle/19.0.0/ojdbc10.jar"/>
+		</copy>
+		<!-- build the plugin manifest file -->
+		<echo message="Generating plugin manifest file" />
+		<property name="Plugin.Manifest.Filename" value="${PackagePatchDir}/CHP_${Patch.Type}_${MediaMogul.Version}.${Patch.Version}/${Plugin.Code}/CHP_${Patch.Type}_${MediaMogul.Version}.${Patch.Version}/manifest.xml"/>
+		<delete file="${Plugin.Manifest.Filename}" />
+		<echo file="${Plugin.Manifest.Filename}" append="true" message="&lt;?xml version=&quot;1.0&quot; encoding=&quot;UTF-8&quot; ?&gt;${line.separator}" />
+		<echo file="${Plugin.Manifest.Filename}" append="true" message="&lt;plugin-manifest&gt;${line.separator}" />
+		<echo file="${Plugin.Manifest.Filename}" append="true" message="&lt;version&gt;${MediaMogul.Version}.${Patch.Version.Ask}&lt;/version&gt;${line.separator}" />
+		<echo file="${Plugin.Manifest.Filename}" append="true" message="&lt;application&gt;All&lt;/application&gt;${line.separator}" />
+		<echo file="${Plugin.Manifest.Filename}" append="true" message="&lt;/plugin-manifest&gt;${line.separator}" />
+		<!-- zip up the plugin structure -->
+		<!--
+		changed to build a jar as that includes the installation code
+		<delete file="${PackagePatchDir}/CHP_${Patch.Type}_${MediaMogul.Version}.${Patch.Version}.zip" />
+		<zip destfile="${PackagePatchDir}/CHP_${Patch.Type}_${MediaMogul.Version}.${Patch.Version}.zip">
+			<fileset dir="${Plugin.Base}" />
+		</zip>
+		-->
+		<delete file="${PackagePatchDir}/CHP_${Patch.Type}_${MediaMogul.Version}.${Patch.Version}.jar" />
+		<jar destfile="${PackagePatchDir}/CHP_${Patch.Type}_${MediaMogul.Version}.${Patch.Version}.jar">
+			<manifest>
+				<attribute name="Main-Class" value="com.picdar.application.Installer.ApplicationInstaller" />
+				<attribute name="Class-Path" value="lib/ojdbc10.jar lib/postgresql-42.5.0.jar" />
+				<attribute name="Implementation-Vendor" value="OpenText"/>
+				<attribute name="Implementation-Title" value="com.opentext.core.CHP"/>
+				<attribute name="Implementation-Version" value="${MediaMogul.Version}.${Patch.Version.Ask}"/>
+				<attribute name="Build-Time" value="${current.time}"/>
+			</manifest>
+			<fileset dir="${Plugin.Base}" />
+		</jar>
+		<delete dir="${PackagePatchDir}/CHPApplications" />
+		<delete dir="${Plugin.Base}" />
+		<!--	Archive the patch.  -->
+		<mkdir dir="Config/Patch/${MediaMogul.Version}" />
+		<copy todir="Config/Patch/${MediaMogul.Version}">
+			<fileset dir="${PackagePatchDir}" includes="CHP_${Patch.Type}_${MediaMogul.Version}.${Patch.Version}.jar"/>
+		</copy>
+		<echo message="Patch archived to Config/Patch/${MediaMogul.Version} - please remember to commit to GIT" />
+	</target>
+	<target name="Standard Config Component Copy">
+		<basename property="Type" file="${ComponentDir}" />
+		<echo message="StandardConfiguration - ${Type}" />
+		<copy todir="${StandardConfigPackageDir}/${Type}" >
+			<fileset dir="${ComponentDir}" />
+		</copy>
+	</target>
+	<target name="Standard Config Component Zip">
+		<basename property="Type" file="${ComponentDir}" />
+		<echo message="StandardConfiguration - ${Type}" />
+		<zip destfile="${StandardConfigPackageDir}/${Type}.zip" basedir="${ComponentDir}" />
+	</target>
+	<target name="Standard Config Group">
+		<basename property="Group" file="${GroupDir}" />
+		<foreach target="Standard Config Group Component Zip" param="ComponentDir">
+			<path>
+				<dirset dir="${GroupDir}" >
+					<depth min="0" max="0"/>
+				</dirset>
+			</path>
+		</foreach>
+	</target>
+	<target name="Standard Config Group Component Zip">
+		<basename property="Type" file="${ComponentDir}" />
+		<dirname property="DirName" file="${ComponentDir}" />
+		<basename property="Group" file="${DirName}" />
+		<echo message="StandardConfiguration - ${Group} - ${Type}" />
+		<zip destfile="${StandardConfigPackageDir}/${Group}/${Type}.zip" basedir="${ComponentDir}" />
+	</target>
+	<target name="Tokenise Properties">
+		<property file="Config/SystemProperties/${SourceProps}" />
+		<echo message="Making ${PropVersion} version of system.properties" />
+		<copy file="Config/SystemProperties/system.properties" tofile="${PropsFolder}/${DestPropsFile}">
+			<filterchain>
+				<expandproperties/>
+			</filterchain>
+		</copy>
+		<echo message="Finished tokenising." />
+	</target>
+	<!-- targets to release CHP -->
+	<target name="Release CHP">
+		<if>
+			<not>
+				<isset property="quickBuild" />
+			</not>
+			<then>
+				<antcall target="Check Java Imports" />
+				<antcall target="Check Logger Statements" />
+				<antcall target="Check CSS Files" />
+				<antcall target="Check JSP Files" />
+				<antcall target="Check Java Files" />
+				<check-jsp-for-utf-8 dirToScan="CHP" />
+				<check-jsp-for-utf-8 dirToScan="CHP-and-SystemManagement-shared" />
+			</then>
+		</if>
+		<antcall target="Release CHP Resources" />
+		<antcall target="Release CHP Static" />
+		<antcall target="Release CHP WAR" />
+		<antcall target="Touch CHP Web XML" />
+	</target>
+	<target name="Release CHP JSP">
+		<copy todir="${CHP_ReleaseDir}/${CHPReleaseName}.war">
+			<fileset dir="CHP/CHP">
+				<exclude name="**/TagLib/**" />
+				<exclude name="**/WEB-INF/**" />
+				<exclude name="**/TestHarness/**" />
+			</fileset>
+		</copy>
+		<copy todir="${CHP_ReleaseDir}/${CHPReleaseName}.war/JSP">
+			<fileset dir="CHP-and-SystemManagement-shared/JSP">
+			</fileset>
+		</copy>
+	</target>
+	<target name="Release CHP Test Harness">
+		<echo message="  Releasing CHP Test Harness" />
+		<copy todir="${CHP_ReleaseDir}/${CHPReleaseName}.war">
+			<fileset dir="CHP/CHP">
+				<include name="**/TestHarness/**" />
+			</fileset>
+		</copy>
+	</target>
+	<target name="Release CHP Resources">
+		<!-- first copy the core configuration -->
+		<copy todir="${CHP_ReleaseDir}/${CHPReleaseName}.war/WEB-INF/Resources">
+			<fileset dir="CHP/Resources" />
+		</copy>
+		<!-- now the system configuration -->
+		<antcall target="Release System Config">
+			<param name="RelDir" value="${CHP_ReleaseDir}" />
+			<param name="DestDir" value="${CHPReleaseName}.war/WEB-INF/Resources" />
+		</antcall>
+	</target>
+	<target name="List Panelbar Graphics Files">
+		<fileset id="panelbargraphics" dir="CHP/Static/static/images/panelbar" includes="*.png" />
+		<property name="panelbargraphicsfiles" refid="panelbargraphics" />
+		<property name="panelbargraphicsfilesfile" value="${RelDir}/${RelName}.war/static/javascript/panels/dockManager-panelbargraphics.js" />
+		<echo file="${panelbargraphicsfilesfile}">/* This file has been automatically generated/updated by the ANT script */${line.separator}</echo>
+		<echo file="${panelbargraphicsfilesfile}" append="true">var AVAILABLE_PANELBAR_GRAPHICS = "${panelbargraphicsfiles}";${line.separator}</echo>
+	</target>
+	<target name="Release CHP Static">
+		<copy todir="${CHP_ReleaseDir}/${CHPReleaseName}.war">
+			<fileset dir="CHP/Static">
+				<exclude name="**/TestHarness/**" />
+				<exclude name="**/deployed_plugins/**" />
+				<exclude name="**/sample_plugins/**" />
+				<exclude name="**/undeployed_plugins/**" />
+				<exclude name="**/*-explanations.png" />
+				<exclude name="**/*-explanation.png" />
+				<exclude name="**/*-readme.txt" />
+				<exclude name="**/*-purple.gif" />
+				<exclude name="**/*-purple.png" />
+				<exclude name="**/lib/ckeditor/dev/**" />
+				<exclude name="**/lib/ckeditor/tests/**" />
+			</fileset>
+		</copy>
+		<copy todir="${CHP_ReleaseDir}/${CHPReleaseName}.war/static/javascript">
+			<fileset dir="CHP-and-SystemManagement-shared/javascript">
+			</fileset>
+		</copy>
+		<antcall target="List Panelbar Graphics Files">
+			<param name="RelDir" value="${CHP_ReleaseDir}" />
+			<param name="RelName" value="${CHPReleaseName}" />
+		</antcall>
+		<copy todir="${CHP_ReleaseDir}/${CHPReleaseName}.war/static/images">
+			<fileset dir="CHP-and-SystemManagement-shared/images">
+			</fileset>
+		</copy>
+		<if>
+			<not>
+				<isset property="SkipBuildStandardPlugins" />
+			</not>
+			<then>
+				<!-- need to make a copy of the set of standard plugins so that we can modify the version numbers before zipping them -->
+				<!-- the version number might include an iteration build, so just get the main version number part -->
+				<script language="groovy" classpathref="maven.classpath">
+				    def before = project.getProperty("MediaMogul.Version");
+					def underscore_pos = before.indexOf("_");
+					if (underscore_pos == -1)
+						project.setProperty("MediaMogul.VersionForPlugins", before);
+					else
+				    	project.setProperty("MediaMogul.VersionForPlugins", before.substring(0, underscore_pos));
+				</script>
+				<if>
+					<equals arg1="${Patch.Version}" arg2="" />
+					<then>
+						<property name="FullVersionStr" value="${MediaMogul.VersionForPlugins}.0" />
+					</then>
+					<else>
+						<property name="FullVersionStr" value="${MediaMogul.VersionForPlugins}.${Patch.Version}" />
+					</else>
+				</if>
+				<echo message="Building standard plugins for ${FullVersionStr}" />
+				<delete dir="${ReleaseDir}/CHPData/plugin_build_stage" />
+				<copy todir="${ReleaseDir}/CHPData/plugin_build_stage">
+					<fileset dir="CHP/Static/static/deployed_plugins" />
+				</copy>
+				<replace dir="${ReleaseDir}/CHPData/plugin_build_stage" value="${FullVersionStr}">
+					<include name="**/**/manifest.xml" />
+					<replacetoken>_USE_CHP_VERSION_</replacetoken>
+				</replace>
+				<!-- package up the extras for process based plugins... -->
+				<echo message="Packaging standard process based plugins ${FullVersionStr}" />
+				<foreach target="Package Process Plugin" param="ComponentDir">
+					<path>
+						<dirset dir="${ReleaseDir}/CHPData/plugin_build_stage/PROC" >
+							<depth min="0" max="0"/>
+						</dirset>
+					</path>
+				</foreach>
+				<zip destfile="${ReleaseDir}/CHPData/initial-plugin/plugin_${FullVersionStr}.zip">
+					<fileset dir="${ReleaseDir}/CHPData/plugin_build_stage" includes="**/*"/>
+				</zip>
+				<delete dir="${ReleaseDir}/CHPData/plugin_build_stage" />
+				<echo message="Building sample plugins for ${FullVersionStr}" />
+				<copy todir="${ReleaseDir}/CHPData/plugin_build_stage">
+					<fileset dir="CHP/Static/static/sample_plugins" />
+				</copy>
+				<replace dir="${ReleaseDir}/CHPData/plugin_build_stage" value="${FullVersionStr}">
+					<include name="**/**/manifest.xml" />
+					<replacetoken>_USE_CHP_VERSION_</replacetoken>
+				</replace>
+				<!-- package up the extras for process based plugins... -->
+				<echo message="Packaging sample process based plugins ${FullVersionStr}" />
+				<foreach target="Package Process Plugin" param="ComponentDir">
+					<path>
+						<dirset dir="${ReleaseDir}/CHPData/plugin_build_stage/PROC" >
+							<depth min="0" max="0"/>
+						</dirset>
+					</path>
+				</foreach>
+				<zip destfile="${ReleaseDir}/CHPData/sample-plugin/sample_plugin_${FullVersionStr}.zip">
+					<fileset dir="${ReleaseDir}/CHPData/plugin_build_stage" includes="**/*"/>
+				</zip>
+				<delete dir="${ReleaseDir}/CHPData/plugin_build_stage" />
+			</then>
+		</if>
+		<replace dir="${CHP_ReleaseDir}/${CHPReleaseName}.war/static/style" value="${CHPReleaseName}">
+			<include name="**/**/*.css" />
+			<replacetoken>
+				<![CDATA[${CHPReleaseName}]]>
+			</replacetoken>
+		</replace>
+	</target>
+	<!-- zip up any extras within the process -->
+	<target name="Package Process Plugin">
+		<echo message="${ComponentDir}" />
+		<if>
+			<available file="${ComponentDir}/extras/groovy_scripts"/>
+			<then>
+				<zip destfile="${ComponentDir}/extras/groovy_scripts.zip">
+					<fileset dir="${ComponentDir}/extras/groovy_scripts" />
+				</zip>
+				<delete dir="${ComponentDir}/extras/groovy_scripts" />
+			</then>
+		</if>
+		<if>
+			<available file="${ComponentDir}/extras/icons"/>
+			<then>
+				<zip destfile="${ComponentDir}/extras/icons.zip">
+					<fileset dir="${ComponentDir}/extras/icons" />
+				</zip>
+				<delete dir="${ComponentDir}/extras/icons" />
+			</then>
+		</if>
+		<if>
+			<available file="${ComponentDir}/extras/processes"/>
+			<then>
+				<zip destfile="${ComponentDir}/extras/processes.zip">
+					<fileset dir="${ComponentDir}/extras/processes" />
+				</zip>
+				<delete dir="${ComponentDir}/extras/processes" />
+			</then>
+		</if>
+		<if>
+			<available file="${ComponentDir}/extras/process_templates"/>
+			<then>
+				<zip destfile="${ComponentDir}/extras/process_templates.zip">
+					<fileset dir="${ComponentDir}/extras/process_templates" />
+				</zip>
+				<delete dir="${ComponentDir}/extras/process_templates" />
+			</then>
+		</if>
+		<if>
+			<available file="${ComponentDir}/extras/transformers"/>
+			<then>
+				<zip destfile="${ComponentDir}/extras/transformers.zip">
+					<fileset dir="${ComponentDir}/extras/transformers" />
+				</zip>
+				<delete dir="${ComponentDir}/extras/transformers" />
+			</then>
+		</if>
+		<if>
+			<available file="${ComponentDir}/extras/workflow_scripts"/>
+			<then>
+				<zip destfile="${ComponentDir}/extras/workflow_scripts.zip">
+					<fileset dir="${ComponentDir}/extras/workflow_scripts" />
+				</zip>
+				<delete dir="${ComponentDir}/extras/workflow_scripts" />
+			</then>
+		</if>
+	</target>
+	<!-- This target is not normally needed as part of a build, but can be explicitly built if needed during development -->
+	<target name="Release CHP Static Test Harnesses">
+		<copy todir="${CHP_ReleaseDir}/${CHPReleaseName}.war/TestHarness">
+			<fileset dir="CHP/Static/TestHarness">
+			</fileset>
+		</copy>
+	</target>
+	<target name="Release CHP WAR">
+		<!-- first copy the shared components -->
+		<antcall target="Release Shared Components">
+			<param name="RelDir" value="${CHP_ReleaseDir}" />
+			<param name="DestDir" value="${CHPReleaseName}.war" />
+		</antcall>
+		<replace file="${CHP_ReleaseDir}/${CHPReleaseName}.war/META-INF/MANIFEST.MF" token="$$_appname_$$" value="${CHPReleaseName}"/>
+		<echo message="Releasing with static string '${StaticString}'"/>
+		<!-- then the core components -->
+		<copy todir="${CHP_ReleaseDir}/${CHPReleaseName}.war">
+			<fileset dir="${basedir}/CHP/CHP" excludes="TagLib/**,TestHarness/**" />
+		</copy>
+		<copy todir="${CHP_ReleaseDir}/${CHPReleaseName}.war/JSP">
+			<fileset dir="CHP-and-SystemManagement-shared/JSP">
+			</fileset>
+		</copy>
+		<replace dir="${CHP_ReleaseDir}/${CHPReleaseName}.war/WEB-INF/Resources/Config" token="$${MediaMogul.Version}" value="${MediaMogul.Version}">
+			<include name="**/Version.xml" />
+		</replace>
+		<replace dir="${CHP_ReleaseDir}/${CHPReleaseName}.war/WEB-INF/Resources/Config" token="$${Patch.Version}" value="${Patch.Version}">
+			<include name="**/Version.xml" />
+		</replace>
+		<replace dir="${CHP_ReleaseDir}/${CHPReleaseName}.war/WEB-INF/Resources/Config" token="$${Developer.ProjectName}" value="${StaticString}">
+			<include name="**/Version.xml" />
+		</replace>
+		<!-- now the jar files -->
+		<antcall target="Release Libs">
+			<param name="RelDir" value="${CHP_ReleaseDir}" />
+			<param name="DestDir" value="${CHPReleaseName}.war" />
+		</antcall>
+	</target>
+	<target name="Touch CHP Web XML">
+		<touch file="${CHP_ReleaseDir}/${CHPReleaseName}.war/WEB-INF/web.xml" />
+	</target>
+	<target name="Release CMIS">
+		<if>
+			<not>
+				<isset property="quickBuild" />
+			</not>
+			<then>
+				<check-jsp-for-utf-8 dirToScan="CMIS" />
+			</then>
+		</if>
+		<antcall target="Release CMIS Resources"/>
+		<antcall target="Release CMIS WAR"/>
+		<antcall target="Touch CMIS Web XML"/>
+	</target>
+	<target name="Release CMIS Resources">
+		<!-- first copy the core configuration -->
+		<copy todir="${CMIS_ReleaseDir}/${CMISReleaseName}.war/WEB-INF/Resources">
+			<fileset dir="CMIS/Resources" />
+		</copy>
+		<!-- now the system configuration -->
+		<antcall target="Release System Config">
+			<param name="RelDir" value="${CMIS_ReleaseDir}" />
+			<param name="DestDir" value="${CMISReleaseName}.war/WEB-INF/Resources" />
+		</antcall>
+	</target>
+	<target name="Release CMIS JSP" description="Release CMIS JSP">
+		<copy todir="${CMIS_ReleaseDir}/${CMISReleaseName}.war">
+			<fileset dir="CMIS/CMIS" includes="**/*.jsp" excludes="TagLib/**" />
+		</copy>
+	</target>
+	<target name="Release CMIS WAR">
+		<!-- first copy the shared components -->
+		<antcall target="Release Shared Components">
+			<param name="RelDir" value="${CMIS_ReleaseDir}" />
+			<param name="DestDir" value="${CMISReleaseName}.war" />
+		</antcall>
+		<!-- then copy the core components -->
+		<copy todir="${CMIS_ReleaseDir}/${CMISReleaseName}.war">
+			<fileset dir="CMIS/CMIS" excludes="TagLib/**" />
+		</copy>
+		<copy todir="${CMIS_ReleaseDir}/${CMISReleaseName}.war">
+			<fileset dir="Config" includes="dtd/xhtml/**" excludes="" />
+		</copy>
+		<copy todir="${CMIS_ReleaseDir}/${CMISReleaseName}.war/static/javascript/panels">
+			<fileset dir="CHP/Static/static/javascript/panels" includes="JSONUtils.js" />
+		</copy>
+		<copy todir="${CMIS_ReleaseDir}/${CMISReleaseName}.war/static/images">
+			<fileset dir="CHP-and-SystemManagement-shared/images">
+			</fileset>
+		</copy>
+		<replace dir="${CMIS_ReleaseDir}/${CMISReleaseName}.war/WEB-INF/Resources/Config" token="$${MediaMogul.Version}" value="${MediaMogul.Version}">
+			<include name="**/Version.xml" />
+		</replace>
+		<replace dir="${CMIS_ReleaseDir}/${CMISReleaseName}.war/WEB-INF/Resources/Config" token="$${Patch.Version}" value="${Patch.Version}">
+			<include name="**/Version.xml" />
+		</replace>
+		<!-- now the jar files -->
+		<antcall target="Release Libs">
+			<param name="DestDir" value="${CMISReleaseName}.war" />
+			<param name="RelDir" value="${CMIS_ReleaseDir}" />
+		</antcall>
+	</target>
+	<target name="Touch CMIS Web XML">
+		<touch file="${CMIS_ReleaseDir}/${CMISReleaseName}.war/WEB-INF/web.xml" />
+	</target>
+	<target name="Release CMIS Browser">
+		<copy file="lib/chemistry-opencmis-test-browser-app-0.14.0.war" tofile="${CMIS_ReleaseDir}/CMISBrowser.war" />
+		<!-- delete any *.war.deploy, etc. files and recreate the *.war.dodeploy file -->
+		<delete>
+			<fileset dir="${CMIS_ReleaseDir}">
+				<include name="**/CMISBrowser.war.*"/>
+			</fileset>
+		</delete>
+		<touch file="${CMIS_ReleaseDir}/CMISBrowser.war.dodeploy"/>
+	</target>
+	<!-- targets to release CHPSysMgt -->
+	<target name="Release CHPSysMgt">
+		<if>
+			<not>
+				<isset property="quickBuild" />
+			</not>
+			<then>
+				<check-jsp-for-utf-8 dirToScan="CHPSysMgt" />
+				<check-jsp-for-utf-8 dirToScan="CHP-and-SystemManagement-shared" />
+			</then>
+		</if>
+		<antcall target="Release CHPSysMgt Resources" />
+		<antcall target="Release CHPSysMgt Static" />
+		<antcall target="Release CHPSysMgt WAR" />
+		<antcall target="Touch CHPSysMgt Web XML" />
+	</target>
+	<target name="Release CHPSysMgt JSP and Static">
+		<antcall target="Release CHPSysMgt JSP" />
+		<antcall target="Release CHPSysMgt Static" />
+	</target>
+	<target name="Release CHPSysMgt JSP">
+		<copy todir="${CHPSysMgt_ReleaseDir}/${CHPSysMgtReleaseName}.war">
+			<fileset dir="CHPSysMgt/CHPSysMgt" />
+		</copy>
+		<copy todir="${CHPSysMgt_ReleaseDir}/${CHPSysMgtReleaseName}.war/JSP">
+			<fileset dir="CHP-and-SystemManagement-shared/JSP">
+			</fileset>
+		</copy>
+		<!-- Copy JSP files from CHP Static that contain the "CHPSysMgtIncluded" tag -->
+		<copy todir="${CHPSysMgt_ReleaseDir}/${CHPSysMgtReleaseName}.war">
+			<fileset dir="CHP/CHP" includes="**/*.jsp">
+				<contains text="CHPSysMgtIncluded" />
+			</fileset>
+		</copy>
+	</target>
+	<target name="Release CHPSysMgt Resources">
+		<!-- first copy the core configuration -->
+		<copy todir="${CHPSysMgt_ReleaseDir}/${CHPSysMgtReleaseName}.war/WEB-INF/Resources">
+			<fileset dir="CHPSysMgt/Resources" />
+		</copy>
+		<!-- now the system configuration -->
+		<antcall target="Release System Config">
+			<param name="RelDir" value="${CHPSysMgt_ReleaseDir}" />
+			<param name="DestDir" value="${CHPSysMgtReleaseName}.war/WEB-INF/Resources" />
+		</antcall>
+	</target>
+	<target name="Release CHPSysMgt Static">
+		<!-- "Purple" images in Static are are renamed as we do so -->
+		<copy todir="${CHPSysMgt_ReleaseDir}/${CHPSysMgtReleaseName}.war" enablemultiplemappings="false">
+			<mappedresources>
+				<fileset dir="CHPSysMgt/Static">
+					<exclude name="**/*-readme.txt" />
+				</fileset>
+				<compositemapper>
+					<globmapper from="*-purple.gif" to="*.gif" />
+					<globmapper from="*-purple.png" to="*.png" />
+					<identitymapper />
+					<!-- Listing indentitymapper last together with enablemultiplemappings="false", means that 
+					     wribbon-chpsysmgt-home-purple.png will win over ribbon-chpsysmgt-home.png.
+					     See http://stackoverflow.com/questions/4943737/ant-copy-with-many-mappers-problem -->
+				</compositemapper>
+			</mappedresources>
+		</copy>
+		<copy todir="${CHPSysMgt_ReleaseDir}/${CHPSysMgtReleaseName}.war/static/javascript">
+			<fileset dir="CHP-and-SystemManagement-shared/javascript">
+			</fileset>
+		</copy>
+		<copy todir="${CHPSysMgt_ReleaseDir}/${CHPSysMgtReleaseName}.war/static/images">
+			<fileset dir="CHP-and-SystemManagement-shared/images">
+			</fileset>
+		</copy>
+		<copy todir="${CHPSysMgt_ReleaseDir}/${CHPSysMgtReleaseName}.war/static/">
+			<fileset dir="Config" includes="dtd/xhtml/**" excludes="" />
+		</copy>
+		<!-- The style (CSS) information is copied from CHP -->
+		<copy todir="${CHPSysMgt_ReleaseDir}/${CHPSysMgtReleaseName}.war/static/style">
+			<fileset dir="CHP/Static/static/style">
+				<exclude name="**/cosmeticstyle_application.jsp" />
+			</fileset>
+		</copy>
+		<!-- The images are copied from CHP -->
+		<!-- "Purple" images are are renamed as we do so -->
+		<copy todir="${CHPSysMgt_ReleaseDir}/${CHPSysMgtReleaseName}.war/static/images" enablemultiplemappings="false">
+			<mappedresources>
+				<fileset dir="CHP/Static/static/images">
+					<exclude name="**/*-explanations.png" />
+					<exclude name="**/*-explanation.png" />
+					<exclude name="**/*-readme.txt" />
+				</fileset>
+				<compositemapper>
+					<globmapper from="*-purple.gif" to="*.gif" />
+					<globmapper from="*-purple.png" to="*.png" />
+					<identitymapper />
+					<!-- Listing indentitymapper last together with enablemultiplemappings="false", means that 
+					     when ribbon-purple.gif is renamed to ribbon.gif, it will win over the original ribbon.gif.
+					     See http://stackoverflow.com/questions/4943737/ant-copy-with-many-mappers-problem -->
+				</compositemapper>
+			</mappedresources>
+		</copy>
+		<!-- Copy JS files from CHP Static that contain the "CHPSysMgtIncluded" tag -->
+		<copy todir="${CHPSysMgt_ReleaseDir}/${CHPSysMgtReleaseName}.war/static">
+			<fileset dir="CHP/Static/static" includes="**/*.js">
+				<contains text="CHPSysMgtIncluded" />
+			</fileset>
+		</copy>
+		<!-- Copy the Javascript libraries that System Management needs-->
+		<copy todir="${CHPSysMgt_ReleaseDir}/${CHPSysMgtReleaseName}.war/static/lib/jquery">
+			<fileset dir="CHP/Static/static/lib/jquery"/>
+		</copy>
+		<copy todir="${CHPSysMgt_ReleaseDir}/${CHPSysMgtReleaseName}.war/static/lib/jstz">
+			<fileset dir="CHP/Static/static/lib/jstz"/>
+		</copy>
+		<copy todir="${CHPSysMgt_ReleaseDir}/${CHPSysMgtReleaseName}.war/static/lib/papaparse">
+			<fileset dir="CHP/Static/static/lib/papaparse"/>
+		</copy>
+		<copy todir="${CHPSysMgt_ReleaseDir}/${CHPSysMgtReleaseName}.war/static/lib/shortcut">
+			<fileset dir="CHP/Static/static/lib/shortcut"/>
+		</copy>
+		<copy todir="${CHPSysMgt_ReleaseDir}/${CHPSysMgtReleaseName}.war/static/lib/ckeditor">
+			<fileset dir="CHP/Static/static/lib/ckeditor">
+				<exclude name="**/dev/**" />
+				<exclude name="**/tests/**" />
+			</fileset>
+		</copy>
+		<copy todir="${CHPSysMgt_ReleaseDir}/${CHPSysMgtReleaseName}.war/static/lib/jsdifflib">
+			<fileset dir="CHP/Static/static/lib/jsdifflib"/>
+		</copy>
+		<copy todir="${CHPSysMgt_ReleaseDir}/${CHPSysMgtReleaseName}.war/static/lib/fontawesome/">
+			<fileset dir="CHP/Static/static/lib/fontawesome/"/>
+		</copy>
+		<!-- Copy the font files that System Management needs -->
+		<copy todir="${CHPSysMgt_ReleaseDir}/${CHPSysMgtReleaseName}.war/static/fonts">
+			<fileset dir="CHP/Static/static/fonts"/>
+		</copy>
+		<antcall target="List Panelbar Graphics Files">
+			<param name="RelDir" value="${CHPSysMgt_ReleaseDir}" />
+			<param name="RelName" value="${CHPSysMgtReleaseName}" />
+		</antcall>
+	</target>
+	<target name="Release CHPSysMgt WAR">
+		<!-- first copy the shared components -->
+		<antcall target="Release Shared Components">
+			<param name="RelDir" value="${CHPSysMgt_ReleaseDir}" />
+			<param name="DestDir" value="${CHPSysMgtReleaseName}.war" />
+		</antcall>
+		<replace file="${CHPSysMgt_ReleaseDir}/${CHPSysMgtReleaseName}.war/META-INF/MANIFEST.MF" token="$$_appname_$$" value="${CHPSysMgtReleaseName}"/>
+		<!-- then the core components -->
+		<copy todir="${CHPSysMgt_ReleaseDir}/${CHPSysMgtReleaseName}.war" overwrite="yes">
+			<fileset dir="CHPSysMgt/CHPSysMgt" excludes="TagLib/**" />
+		</copy>
+		<copy todir="${CHPSysMgt_ReleaseDir}/${CHPSysMgtReleaseName}.war/JSP">
+			<fileset dir="CHP-and-SystemManagement-shared/JSP">
+			</fileset>
+		</copy>
+		<!-- Copy JSP files from CHP Static that contain the "CHPSysMgtIncluded" tag -->
+		<copy todir="${CHPSysMgt_ReleaseDir}/${CHPSysMgtReleaseName}.war">
+			<fileset dir="CHP/CHP" includes="**/*.jsp">
+				<contains text="CHPSysMgtIncluded" />
+			</fileset>
+		</copy>
+		<replace dir="${CHPSysMgt_ReleaseDir}/${CHPSysMgtReleaseName}.war/WEB-INF/Resources/Config" token="$${MediaMogul.Version}" value="${MediaMogul.Version}">
+			<include name="**/Version.xml" />
+		</replace>
+		<replace dir="${CHPSysMgt_ReleaseDir}/${CHPSysMgtReleaseName}.war/WEB-INF/Resources/Config" token="$${Patch.Version}" value="${Patch.Version}">
+			<include name="**/Version.xml" />
+		</replace>
+		<antcall target="Release Libs">
+			<param name="RelDir" value="${CHPSysMgt_ReleaseDir}" />
+			<param name="DestDir" value="${CHPSysMgtReleaseName}.war" />
+		</antcall>
+	</target>
+	<target name="Touch CHPSysMgt Web XML">
+		<touch file="${CHPSysMgt_ReleaseDir}/${CHPSysMgtReleaseName}.war/WEB-INF/web.xml" />
+	</target>
+	<target name="Release CHP Data">
+		<mkdir dir="${ReleaseDir}/CHPData/fonts" />
+		<copy todir="${ReleaseDir}/CHPData/fonts">
+			<fileset dir="Config/Print" includes="**" />
+		</copy>
+		<mkdir dir="${ReleaseDir}/CHPData/stylesheets" />
+		<!-- Creates CHPData/esapi folder -->
+		<!--	<unzip src="lib/esapi.modified-2.3.0.0.jar" dest="${ReleaseDir}/CHPData">
+			<patternset>
+				<include name="esapi/*.properties" />
+			</patternset>
+		</unzip>-->
+		<mkdir dir="${ReleaseDir}/CHPData/esapi" />
+		<copy todir="${ReleaseDir}/CHPData/esapi">
+			<fileset dir="Config/esapi" includes="**" />
+		</copy>
+	</target>
+	<target name="Release System Props">
+		<echo message="Using ${SourceProps}" />
+		<delete>
+			<fileset dir="${ReleaseDir}" includes="system.properties" />
+		</delete>
+		<copy todir="${ReleaseDir}">
+			<fileset dir="Config" includes="logger_config.xml" />
+		</copy>
+		<antcall target="Tokenise Properties">
+			<param name="PropsFolder" value="${ReleaseDir}" />
+			<param name="SourceProps" value="${SourceProps}" />
+			<param name="PropVersion" value="local" />
+			<param name="DestPropsFile" value="system.properties" />
+		</antcall>
+	</target>
+	<!-- Release the tools -->
+	<target name="Release Tools" description="Release Tools" depends="Build CHP Core Jar">
+		<property name="ToolDir" value="${ReleaseDir}/Tools" />
+		<mkdir dir="${ToolDir}" />
+		<copy todir="${ToolDir}/lib" flatten="yes">
+			<fileset dir="${basedir}/lib" excludes="**/activation.jar,**/chemistry-opencmis-*.jar,**/gettext-ant-*.jar,**/ant.jar,**/j2ee.jar,**/jaxrpc*.jar,**/jboss-j2ee.jar,**/jsp-api.jar,**/junit.jar,**/solr-*.jar" />
+		</copy>
+		<delete>
+			<fileset dir="${ToolDir}/lib" includes="CHP_*.jar" excludes="" />
+		</delete>
+		<copy file="bin/CHP_Core.jar" todir="${ToolDir}/lib" />
+		<copy todir="${ToolDir}/Resources">
+			<fileset dir="Tools/Resources" />
+		</copy>
+		<antcall target="Release System Config">
+			<param name="DestDir" value="Tools/Resources" />
+			<param name="RelDir" value="${ReleaseDir}" />
+		</antcall>
+		<replace dir="${ToolDir}/Resources/Config" token="$${MediaMogul.Version}" value="${MediaMogul.Version}">
+			<include name="**/Version.xml" />
+		</replace>
+		<replace dir="${ToolDir}/Resources/Config" token="$${Patch.Version}" value="${Patch.Version}">
+			<include name="**/Version.xml" />
+		</replace>
+		<copy todir="${ToolDir}/Resources" file="src/com/picdar/application/SchemaManager/logger_config.xml" overwrite="yes" />
+		<copy todir="${ToolDir}/Resources" file="src/com/picdar/application/CHPNodeManager/chpnm_logger_config.xml" overwrite="yes" />
+		<antcall target="Release Shared Components for tools">
+			<param name="RelDir" value="${ReleaseDir}" />
+			<param name="DestDir" value="Tools/Resources" />
+		</antcall>
+		<manifestclasspath property="ToolClasspath" jarfile="${ToolDir}/Tool.jar">
+			<classpath>
+				<fileset dir="${ToolDir}/lib" />
+				<pathelement path="${ToolDir}/lib/mail.jar"/>
+				<pathelement path="${ToolDir}/lib/jboss-javaee.jar"/>
+				<pathelement path="${ToolDir}/lib/servlet-api.jar"/>
+			</classpath>
+		</manifestclasspath>
+		<jar destfile="${ToolDir}/SchemaManager.jar">
+			<manifest>
+				<attribute name="Main-Class" value="com.picdar.application.SchemaManager.SchemaManager" />
+				<attribute name="Class-Path" value="${ToolClasspath}" />
+			</manifest>
+		</jar>
+		<jar destfile="${ToolDir}/LDAPTool.jar">
+			<manifest>
+				<attribute name="Main-Class" value="com.picdar.application.LDAP.LDAPTool" />
+				<attribute name="Class-Path" value="${ToolClasspath}" />
+			</manifest>
+		</jar>
+		<jar destfile="${ToolDir}/DeploymentTool.jar">
+			<manifest>
+				<attribute name="Main-Class" value="com.picdar.application.DeploymentTool.DeploymentTool" />
+				<attribute name="Class-Path" value="${ToolClasspath}" />
+			</manifest>
+		</jar>
+		<jar destfile="${ToolDir}/CHPNodeManager.jar">
+			<manifest>
+				<attribute name="Main-Class" value="com.picdar.application.CHPNodeManager.CHPNodeManager" />
+				<attribute name="Class-Path" value="${ToolClasspath}" />
+			</manifest>
+		</jar>
+		<jar destfile="${ToolDir}/ProcessResaver.jar">
+			<manifest>
+				<attribute name="Main-Class" value="com.picdar.application.ProcessIterator.ProcessResaver" />
+				<attribute name="Class-Path" value="${ToolClasspath}" />
+			</manifest>
+		</jar>
+		<!--
+		<jar destfile="${ToolDir}/IndexTool.jar">
+			<manifest>
+				<attribute name="Main-Class" value="com.picdar.application.IndexTool.IndexTool" />
+				<attribute name="Class-Path" value="${ToolClasspath}" />
+			</manifest>
+		</jar>
+
+		<jar destfile="${ToolDir}/LockingTest.jar">
+			<manifest>
+				<attribute name="Main-Class" value="com.picdar.application.LockingTest.LockingTest" />
+				<attribute name="Class-Path" value="${ToolClasspath}" />
+			</manifest>
+		</jar>
+
+		<jar destfile="${ToolDir}/CLOBUpdater.jar">
+			<manifest>
+				<attribute name="Main-Class" value="com.picdar.application.CLOBUpdater.CLOBUpdater" />
+				<attribute name="Class-Path" value="${ToolClasspath}" />
+			</manifest>
+		</jar>
+
+		<jar destfile="${ToolDir}/PropertiesConversionTool.jar">
+			<manifest>
+				<attribute name="Main-Class" value="com.picdar.application.PropertiesConversionTool.PropertiesConversionTool" />
+				<attribute name="Class-Path" value="${ToolClasspath}" />
+			</manifest>
+		</jar>
+
+		<jar destfile="${ToolDir}/PolicySecurityTest.jar">
+			<manifest>
+				<attribute name="Main-Class" value="com.picdar.application.PolicySecurityTest.PolicySecurityTest" />
+				<attribute name="Class-Path" value="${ToolClasspath}" />
+			</manifest>
+		</jar>
+
+		<jar destfile="${ToolDir}/QueuePerformanceTest.jar">
+			<manifest>
+				<attribute name="Main-Class" value="com.picdar.application.QueuePerformanceTest.QueuePerformanceTest" />
+				<attribute name="Class-Path" value="${ToolClasspath}" />
+			</manifest>
+		</jar>
+		-->
+	</target>
+	<!-- create the CHP.jar file -->
+	<target name="Build CHP Core Jar">
+		<if>
+			<not>
+				<isset property="CoreJarBuilt" />
+			</not>
+			<then>
+				<delete>
+					<fileset dir="bin" includes="CHP_Core.jar" excludes="" />
+				</delete>
+				<property name="outputpath" value="bin"/>
+				<tstamp>
+					<format property="current.time" pattern="yyyy.MM.dd HH:mm:ss z" locale="en,UK" />
+				</tstamp>
+				<echo message="CHP core build of ${MediaMogul.Version}.${Patch.Version} time logged at: ${current.time}"/>
+				<!-- creating the custom jar for file chemistry-opencmis-server-async-1.1.0 (Value Edge id:4860097)-->
+				<echo message="outputpath: ${outputpath}"/>
+				<mkdir dir="${outputpath}/tempLibClassHolder/org/apache/chemistry"/>
+				<copy todir="${outputpath}/tempLibClassHolder/org/apache/chemistry">
+					<fileset dir="${outputpath}/org/apache/chemistry"/>
+				</copy>
+				<jar destfile="bin/chemistry-opencmis-server-async-1.1.0-ModifiedByOpenText.jar" basedir="${outputpath}/tempLibClassHolder">	
+
+				</jar>
+				<delete dir="${outputpath}/tempLibClassHolder"/>
+				<echo message="CMIS custom jar build done"/>
+				<!--exclude the CMIS lib's (org/apache/chemistry/**) compiled code from the core jar-->
+				<jar destfile="bin/CHP_Core.jar" basedir="${outputpath}" excludes="**/*.jar,com/picdar/resource/I18nManager/antTasks/**, org/apache/chemistry/**" >
+					<manifest>
+						<attribute name="Main-Class" value="com.picdar.application.Installer.CHPCore" />
+						<attribute name="Implementation-Vendor" value="OpenText"/>
+						<attribute name="Implementation-Title" value="com.opentext.core.CHP"/>
+						<attribute name="Implementation-Version" value="${MediaMogul.Version}${Patch.Version}"/>
+						<attribute name="Build-Time" value="${current.time}"/>
+					</manifest>
+				</jar>
+			</then>
+		</if>
+	</target>
+	<target name="Release Libs" depends="Build CHP Core Jar">
+		<if>
+			<equals arg1="${RelDir}" arg2="${CMIS_ReleaseDir}" />
+			<then>
+				<copy todir="${RelDir}/${DestDir}/WEB-INF/lib" flatten="yes">
+					<fileset dir="${basedir}/lib" excludes="${NotReleased},**/chemistry-opencmis-server-async-1.1.0.jar" />
+				</copy>
+				<copy file="bin/chemistry-opencmis-server-async-1.1.0-ModifiedByOpenText.jar" todir="${RelDir}/${DestDir}/WEB-INF/lib" />
+			</then>
+			<else>
+				<!-- Don't include CMIS libraries in the non-CMIS applications -->
+				<copy todir="${RelDir}/${DestDir}/WEB-INF/lib" flatten="yes">
+					<fileset dir="${basedir}/lib" excludes="${NotReleased},${CMISOnlyLibs}" />
+				</copy>
+			</else>
+		</if>
+		<copy todir="${RelDir}/${DestDir}/WEB-INF/lib" flatten="yes">
+			<fileset dir="${LibDir}" includes="${ExtraJars}" />
+		</copy>
+		<antcall target="Adjust Libs">
+			<param name="DirToAdjust" value="${RelDir}/${DestDir}/WEB-INF/lib" />
+		</antcall>
+		<copy todir="${RelDir}/${DestDir}/WEB-INF/TagLib">
+			<fileset dir="${basedir}/TagLib" />
+		</copy>
+		<delete>
+			<fileset dir="${RelDir}/${DestDir}/WEB-INF/lib" includes="CHP_Core.jar" excludes="" />
+		</delete>
+		<copy file="bin/CHP_Core.jar" todir="${RelDir}/${DestDir}/WEB-INF/lib" />
+		<copy file="lib/xml-apis-1.4.01.jar" todir="${RelDir}/${DestDir}/WEB-INF/lib" />
+		<!-- delete any *.war.deploy, etc. files and recreate the *.war.dodeploy file -->
+		<delete>
+			<fileset dir="${RelDir}">
+				<include name="**/${DestDir}.*"/>
+			</fileset>
+		</delete>
+		<touch file="${RelDir}/${DestDir}.dodeploy"/>
+	</target>
+	<target name="Adjust Libs">
+		<!-- There are 5 libraries that are distributed as "multi-release jars"
+		     (https://www.javaworld.com/article/3184029/java-language/java-9s-other-new-enhancements-part-4-multi-release-jar-files.html)
+		     Unfortunately, Wildfly 15.0.1 does not support these.
+		     (See issue: https://issues.jboss.org/browse/WFCORE-4266)
+		     So we "flatten" the 5 libraries that are affected, as a work-around.
+		     -->
+		<foreach target="Adjust One Lib" param="FileToAdjust">
+			<path>
+				<fileset dir="${DirToAdjust}">
+					<include name="**/log4j-api-*.jar" />
+					<include name="**/log4j-core-*.jar" />
+					<include name="**/lucene-core-*.jar" />
+					<include name="**/lucene-facet-*.jar" />
+					<include name="**/lucene-memory-*.jar" />
+					<exclude name="**/*.JAVA-17.jar" />
+				</fileset>
+			</path>
+		</foreach>
+	</target>
+	<target name="Adjust One Lib">
+		<script language="groovy" classpathref="maven.classpath">
+			project.setProperty("AdjustFileWithoutSuffix", project.getProperty("FileToAdjust").substring(0, project.getProperty("FileToAdjust").length() - ".jar".length()));
+		</script>
+		<property name="AdjustedFile" value="${AdjustFileWithoutSuffix}.JAVA-17.jar" />
+		<if>
+			<available file="${AdjustedFile}" />
+			<then>
+				<!-- Assumption is that if file is already present on disk here, it was correctly adjusted in a previous
+				     build run. This keeps "Quick rebuild all" quick. (If an affected third-party library is replaced and 
+				     bears exactly the same file-name, then a clean build should be done. But all the affected libraries
+				     contain version numbers, so this is unlikely to be the case.)
+				  -->
+				<echo message="Deleting ${FileToAdjust} and keeping ${AdjustedFile}" />
+				<delete file="${FileToAdjust}" quiet="true" />
+			</then>
+			<else>
+				<property name="TempDir" value="${RelDir}/Temporary" />
+				<delete dir="${TempDir}" quiet="true" />
+				<mkdir dir="${TempDir}" />
+				<unzip src="${FileToAdjust}" dest="${TempDir}" />
+				<if>
+					<available file="${TempDir}/META-INF/versions" />
+					<then>
+						<echo message="Adjusting ${FileToAdjust} from a multi-release JAR to a plain JAR, as ${AdjustedFile}" />
+						<if>
+							<available file="${TempDir}/META-INF/versions/9" />
+							<then>
+								<move todir="${TempDir}" overwrite="true">
+									<fileset dir="${TempDir}/META-INF/versions/9" includes="**" />
+								</move>
+							</then>
+						</if>
+						<if>
+							<available file="${TempDir}/META-INF/versions/10" />
+							<then>
+								<move todir="${TempDir}" overwrite="true">
+									<fileset dir="${TempDir}/META-INF/versions/10" includes="**" />
+								</move>
+							</then>
+						</if>
+						<if>
+							<available file="${TempDir}/META-INF/versions/11" />
+							<then>
+								<move todir="${TempDir}" overwrite="true">
+									<fileset dir="${TempDir}/META-INF/versions/11" includes="**" />
+								</move>
+							</then>
+						</if>
+						<echo message="${TempDir}/META-INF/versions" />
+						<delete dir="${TempDir}/META-INF/versions" quiet="true" />
+						<delete file="${AdjustedFile}" quiet="true" />
+						<jar destfile="${AdjustedFile}" basedir="${TempDir}" />
+						<delete file="${FileToAdjust}" quiet="true" />
+					</then>
+				</if>
+				<delete dir="${TempDir}" quiet="true" />
+			</else>
+		</if>
+	</target>
+	<!-- Release the shared components to ${DestDir} -->
+	<target name="Release Shared Components">
+		<copy todir="${RelDir}/${DestDir}">
+			<fileset dir="${basedir}/Shared" />
+		</copy>
+	</target>
+	<!-- Custom shared component release for tools -->
+	<target name="Release Shared Components for tools">
+		<copy todir="${RelDir}/${DestDir}">
+			<fileset dir="${basedir}/Shared/WEB-INF/Resources" />
+		</copy>
+	</target>
+	<!-- Release the system configuration to ${DestDir} -->
+	<target name="Release System Config">
+		<copy todir="${RelDir}/${DestDir}">
+			<fileset dir="${basedir}/Config/Database" excludes="Schema2HTML.xsl" />
+		</copy>
+	</target>
+	<target name="Release Proxy">
+		<copy todir="${Proxy_ReleaseDir}/${ProxyReleaseName}.war">
+			<fileset dir="Proxy" />
+		</copy>
+		<!-- now the jar files -->
+		<antcall target="Release Libs">
+			<param name="DestDir" value="${ProxyReleaseName}.war" />
+			<param name="RelDir" value="${Proxy_ReleaseDir}" />
+		</antcall>
+	</target>
+	<target name="Release MMTE Test" depends="Build CHP Core Jar">
+		<mkdir dir="${MMTETest_ReleaseDir}/bin" />
+		<javac srcdir="src" destdir="${MMTETest_ReleaseDir}/bin" nowarn="yes" deprecation="no" includeantruntime="no">
+			<classpath>
+				<path refid="maven.classpath" />
+			</classpath>
+			<include name="**/MMTETest.java"/>
+		</javac>
+		<copy todir="${MMTETest_ReleaseDir}/lib" flatten="yes">
+			<fileset dir="${basedir}/lib" />
+		</copy>
+		<delete>
+			<fileset dir="${MMTETest_ReleaseDir}/lib" includes="CHP_Core.jar" excludes="" />
+		</delete>
+		<copy file="bin/CHP_Core.jar" todir="${MMTETest_ReleaseDir}/lib" />
+		<manifestclasspath property="MMTETestClasspath" jarfile="${MMTETest_ReleaseDir}/MMTETest.jar">
+			<classpath>
+				<fileset dir="${MMTETest_ReleaseDir}/lib" />
+			</classpath>
+		</manifestclasspath>
+		<jar destfile="${MMTETest_ReleaseDir}/MMTETest.jar">
+			<manifest>
+				<attribute name="Main-Class" value="com.picdar.application.TestHarness.eis.MMTE.MMTETest" />
+				<attribute name="Class-Path" value="${MMTETestClasspath}" />
+			</manifest>
+			<fileset dir="${MMTETest_ReleaseDir}/bin" includes="**/TestHarness/**/MMTE/*"/>
+		</jar>
+		<delete dir="${MMTETest_ReleaseDir}/bin"/>
+	</target>
+	<target name="Log Completed Time">
+		<set.timestamp/>
+		<!--in this example, just echo the timestamp -->
+		<echo message="Time at completion is: ${current.time}"/>
+	</target>
+	<target name="Shared Components">
+	</target>
+	<target name="Add favicon to guides">
+		<echo message="Adding favicon into ${guidePath}" />
+		<copy todir="${guidePath}/Resources" file="CHP-and-SystemManagement-shared/images/opentext-logo/favicon.ico" />
+		<replace file="${guidePath}/Default.htm">
+			<replacefilter token="&lt;head&gt;" value="&lt;head&gt;${line.separator}&lt;link type=&quot;image/x-icon&quot; rel=&quot;shortcut icon&quot; href=&quot;./Resources/favicon.ico&quot; /&gt;${line.separator}&lt;link type=&quot;image/x-icon&quot; rel=&quot;icon&quot; href=&quot;./Resources/favicon.ico&quot; /&gt;${line.separator}" />
+		</replace>
+	</target>
+	<target name="Release Guides (CHP and Portal)">
+		<!-- Do the main guide first. Check that the ZIP file is correct. Add in the favicon -->
+		<delete dir="${CHP_ReleaseDir}/${CHPReleaseName}.war/static/guides" />
+		<mkdir dir="${CHP_ReleaseDir}/${CHPReleaseName}.war/static/guides" />
+		<unzip dest="${CHP_ReleaseDir}/${CHPReleaseName}.war/static/guides" src="Config/Guides/product/product.zip" />
+		<dirset id="checkpath" dir="${CHP_ReleaseDir}/${CHPReleaseName}.war/static/guides">
+			<include name="*"/>
+		</dirset>
+		<pathconvert property="checkpath" refid="checkpath" targetos="unix" />
+		<echo message="Checking path: ${checkpath}" />
+		<echo message="Comparing to : ${CHP_ReleaseDir}/${CHPReleaseName}.war/static/guides/product" />
+		<if>
+			<not>
+				<!-- Use contains, not equals, because checkpath will be preceeded for example with 'C:' -->
+				<contains string="${checkpath}" substring="${CHP_ReleaseDir}/${CHPReleaseName}.war/static/guides/product" casesensitive="true"/>
+			</not>
+			<then>
+				<fail message="The zip-file 'Config/Guides/product/product.zip' fails to contain a folder 'product' (with lower-case p)! Please correct..." />
+			</then>
+		</if>
+		<antcall target="Add favicon to guides">
+			<param name="guidePath" value="${CHP_ReleaseDir}/${CHPReleaseName}.war/static/guides/product/HTML5" />
+		</antcall>
+		<!-- Add the schema guide -->
+		<xslt in="Config/Database/MM_Schema.xml" out="${CHP_ReleaseDir}/${CHPReleaseName}.war/static/guides/schema/Schema.html" style="Config/Database/Schema2HTML.xsl">
+			<outputproperty name="method" value="xml"/>
+			<outputproperty name="standalone" value="yes"/>
+			<outputproperty name="encoding" value="UTF-8"/>
+			<outputproperty name="indent" value="yes"/>
+		</xslt>
+		<copy todir="${CHP_ReleaseDir}/${CHPReleaseName}.war/static/guides/schema" file="CHP-and-SystemManagement-shared/images/opentext-logo/favicon.ico" />
+		<!-- Add the plugin guide -->
+		<copy todir="${CHP_ReleaseDir}/${CHPReleaseName}.war/static/guides/user" flatten="yes">
+			<fileset dir="Config/Guides/plugin" />
+		</copy>
+		<!-- Add the JSDoc -->
+		<ant dir="../chpjs">
+			<property name="JSDocDeployLocation" value="${CHP_ReleaseDir}/${CHPReleaseName}.war/static/guides/jsdoc" />
+		</ant>
+	</target>
+	<target name="Release Guides (CHPSysMgt)">
+		<!-- Do the main guide first. Check that the ZIP file is correct. Add in the favicon -->
+		<delete dir="${CHPSysMgt_ReleaseDir}/${CHPSysMgtReleaseName}.war/static/guides" />
+		<mkdir dir="${CHPSysMgt_ReleaseDir}/${CHPSysMgtReleaseName}.war/static/guides" />
+		<unzip dest="${CHPSysMgt_ReleaseDir}/${CHPSysMgtReleaseName}.war/static/guides" src="Config/Guides/implementation/implementation.zip" />
+		<dirset id="checkpath" dir="${CHPSysMgt_ReleaseDir}/${CHPSysMgtReleaseName}.war/static/guides">
+			<include name="*"/>
+		</dirset>
+		<pathconvert property="checkpath" refid="checkpath" targetos="unix" />
+		<echo message="Checking path: ${checkpath}" />
+		<echo message="Comparing to : ${CHPSysMgt_ReleaseDir}/${CHPSysMgtReleaseName}.war/static/guides/implementation" />
+		<if>
+			<not>
+				<!-- Use contains, not equals, because checkpath will be preceeded for example with 'C:' -->
+				<contains string="${checkpath}" substring="${CHPSysMgt_ReleaseDir}/${CHPSysMgtReleaseName}.war/static/guides/implementation" casesensitive="true"/>
+			</not>
+			<then>
+				<fail message="The zip-file 'Config/Guides/implementation/implementation.zip' fails to contain a folder 'implementation' (with lower-case i)! Please correct..." />
+			</then>
+		</if>
+		<antcall target="Add favicon to guides">
+			<param name="guidePath" value="${CHPSysMgt_ReleaseDir}/${CHPSysMgtReleaseName}.war/static/guides/implementation/HTML5" />
+		</antcall>
+		<!-- Add the JSDoc -->
+		<ant dir="../chpjs">
+			<property name="JSDocDeployLocation" value="${CHPSysMgt_ReleaseDir}/${CHPSysMgtReleaseName}.war/static/guides/jsdoc" />
+		</ant>
+		<!-- Add the third-party libraries guide -->
+		<copy todir="${CHPSysMgt_ReleaseDir}/${CHPSysMgtReleaseName}.war/static/guides/third-party-libraries">
+			<fileset dir="Config/Guides/third-party-libraries">
+			</fileset>
+		</copy>
+		<!-- Add the schema guide -->
+		<xslt in="Config/Database/MM_Schema.xml" out="${CHPSysMgt_ReleaseDir}/${CHPSysMgtReleaseName}.war/static/guides/schema/Schema.html" style="Config/Database/Schema2HTML.xsl">
+			<outputproperty name="method" value="xml"/>
+			<outputproperty name="standalone" value="yes"/>
+			<outputproperty name="encoding" value="UTF-8"/>
+			<outputproperty name="indent" value="yes"/>
+		</xslt>
+		<copy todir="${CHPSysMgt_ReleaseDir}/${CHPSysMgtReleaseName}.war/static/guides/schema" file="CHP-and-SystemManagement-shared/images/opentext-logo/favicon.ico" />
+	</target>
+	<target name="Release Guides" description="Release Guides">
+		<antcall target = "Release Guides (CHP and Portal)" />
+		<antcall target = "Release Guides (CHPSysMgt)" />
+	</target>
+	<target name="Release CHP JSP and Static">
+		<antcall target="Release CHP JSP" />
+		<antcall target="Release CHP Static" />
+	</target>
+	<target name="Release Storage">
+		<if>
+			<not>
+				<isset property="quickBuild" />
+			</not>
+			<then>
+				<check-jsp-for-utf-8 dirToScan="Storage" />
+			</then>
+		</if>
+		<antcall target="Release Storage Resources" />
+		<antcall target="Release Storage Static" />
+		<antcall target="Release Storage WAR" />
+		<antcall target="Touch Storage Web XML" />
+	</target>
+	<target name="Release Storage Resources">
+		<!-- first copy the core configuration -->
+		<copy todir="${Storage_ReleaseDir}/${StorageReleaseName}.war/WEB-INF/Resources">
+			<fileset dir="Storage/Resources" />
+		</copy>
+		<!-- now the system configuration -->
+		<antcall target="Release System Config">
+			<param name="RelDir" value="${Storage_ReleaseDir}" />
+			<param name="DestDir" value="${StorageReleaseName}.war/WEB-INF/Resources" />
+		</antcall>
+	</target>
+	<target name="Release Storage Static">
+		<copy todir="${Storage_ReleaseDir}/${StorageReleaseName}.war">
+			<fileset dir="Storage/Static">
+				<exclude name="**/TestHarness/**" />
+				<exclude name="**/*-explanations.png" />
+				<exclude name="**/*-explanation.png" />
+				<exclude name="**/*-readme.txt" />
+			</fileset>
+		</copy>
+		<copy todir="${Storage_ReleaseDir}/${StorageReleaseName}.war/static/images/opentext-logo">
+			<fileset dir="CHP-and-SystemManagement-shared/images/opentext-logo">
+			</fileset>
+		</copy>
+		<!-- Copy the jQuery Javascript libraries that Storage needs-->
+		<copy todir="${Storage_ReleaseDir}/${StorageReleaseName}.war/static/lib/jquery">
+			<fileset dir="CHP/Static/static/lib/jquery"/>
+		</copy>
+		<replace dir="${Storage_ReleaseDir}/${StorageReleaseName}.war/static/style" value="${StorageReleaseName}">
+			<include name="**/**/*.css" />
+			<replacetoken>
+				<![CDATA[${StorageReleaseName}]]>
+			</replacetoken>
+		</replace>
+	</target>
+	<target name="Release Storage WAR">
+		<!-- first copy the shared components -->
+		<antcall target="Release Shared Components">
+			<param name="RelDir" value="${Storage_ReleaseDir}" />
+			<param name="DestDir" value="${StorageReleaseName}.war" />
+		</antcall>
+		<!-- then the core components -->
+		<copy todir="${Storage_ReleaseDir}/${StorageReleaseName}.war" overwrite="yes">
+			<fileset dir="Storage/Storage" excludes="TagLib/**" />
+		</copy>
+		<replace dir="${Storage_ReleaseDir}/${StorageReleaseName}.war/WEB-INF/Resources/Config" token="$${MediaMogul.Version}" value="${MediaMogul.Version}">
+			<include name="**/Version.xml" />
+		</replace>
+		<replace dir="${Storage_ReleaseDir}/${StorageReleaseName}.war/WEB-INF/Resources/Config" token="$${Patch.Version}" value="${Patch.Version}">
+			<include name="**/Version.xml" />
+		</replace>
+		<replace dir="${Storage_ReleaseDir}/${StorageReleaseName}.war/WEB-INF/Resources/Config" token="$${Developer.ProjectName}" value="${StaticString}">
+			<include name="**/Version.xml" />
+		</replace>
+		<replace dir="${Storage_ReleaseDir}/${StorageReleaseName}.war/WEB-INF/Resources/Config" value="${ReleaseDir}/CHPData/index">
+			<include name="**/Search.xml" />
+			<replacetoken>
+				<![CDATA[${Index.Location}]]>
+			</replacetoken>
+		</replace>
+		<antcall target="Release Libs">
+			<param name="RelDir" value="${Storage_ReleaseDir}" />
+			<param name="DestDir" value="${StorageReleaseName}.war" />
+		</antcall>
+	</target>
+	<target name="Release Storage JSP and Static">
+		<antcall target="Release Storage JSP" />
+		<antcall target="Release Storage Static" />
+	</target>
+	<target name="Release Storage JSP">
+		<copy todir="${Storage_ReleaseDir}/${StorageReleaseName}.war">
+			<fileset dir="Storage/Storage" />
+		</copy>
+	</target>
+	<target name="Touch Storage Web XML">
+		<touch file="${Storage_ReleaseDir}/${StorageReleaseName}.war/WEB-INF/web.xml" />
+	</target>
+	<target name="Release source code">
+		<zip destfile="${PackageReleaseDir}/Source_code_for_CHP_release_${MediaMogul.Version}.zip" level="9">
+			<fileset dir="${WorkspaceDir}">
+				<include name="chp/**" />
+				<include name="chpjs/**" />
+				<exclude name="chp/bin/**" />
+				<exclude name="chp/lib/**" />
+				<exclude name="chpjs/bin/**" />
+				<!-- .svn folders are automatically excluded by ANT's fileset commands -->
+			</fileset>
+		</zip>
+	</target>
+	<target name="Check Java Imports">
+		<sequential>
+			<echo message="Checking Java Imports" />
+			<local name="loggerErrorFiles" />
+			<pathconvert property="loggerErrorFiles" pathsep="${line.separator}">
+				<fileset dir="${WorkspaceDir}/${ant.project.name}" includes="**/*.java,**/*.jsp">
+					<exclude name="**/TestHarness/**/*.*" />
+					<exclude name="**/lib_src/**/*.*" />
+					<exclude name="**/com/picdar/webapplication/Server/ValidationFilter/*.*" />
+					<or>
+						<contains text="com.enterprisedt.util.debug.Logger" />
+						<contains text="com.sun.org.apache.xml.internal.security.utils.I18n" />
+						<contains text="org.apache.axis.utils.StringUtils" />
+						<contains text="org.jboss.resteasy.logging.Logger" />
+						<contains text="org.apache.logging.log4j.jul" />
+						<!-- Don't use the "JUL" version -->
+						<contains text="java.util.logging" />
+						<!-- Should be changed to the Log4j2 classpath, e.g. org.apache.logging.log4j.LogManager -->
+						<contains text="org.apache.log4j" />
+						<!-- Should be changed to the Log4j2 classpath, e.g. org.apache.logging.log4j.LogManager -->
+						<contains text="Logger.getLogger" />
+						<!-- Use LogManager.getLogger - don't use Logger.getLogger. -->
+						<contains text="com.sun.istack.internal.logging.Logger" />
+					</or>
+				</fileset>
+			</pathconvert>
+			<fail message="The following files contain the wrong type of logger or internationalisation or StringUtils:${line.separator}${loggerErrorFiles}">
+				<condition>
+					<length string="${loggerErrorFiles}" when="greater" length="0">
+					</length>
+				</condition>
+			</fail>
+		</sequential>
+	</target>
+	<target name="Check Logger Statements">
+		<!-- LogManager.getLogger(this.getClass().getName()) is inefficient compared with LogManager.getLogger(this.getClass()),
+	         because the first call must walk up the call stack to calculate the ClassLoader to use,
+	         whereas the second call will take the ClassLoader from the class that is passed in.
+	         Similarly, LogManager.getLogger("com.picdar.resource.Core.ResourceManager") should be changed into
+	         LogManager.getLogger(ResourceManager.class)
+		  -->
+		<sequential>
+			<echo message="Checking Logger Statements" />
+			<local name="loggerErrorFiles" />
+			<pathconvert property="loggerErrorFiles" pathsep="${line.separator}">
+				<fileset dir="${WorkspaceDir}/${ant.project.name}" includes="**/*.java,**/*.jsp">
+					<exclude name="**/TestHarness/**/*.*" />
+					<exclude name="**/lib_src/**/*.*" />
+					<exclude name="**/WAFController.java" />
+					<exclude name="**/CHPPortal.jsp" />
+					<or>
+						<contains text="LogManager.getLogger(this.getClass().getName())" />
+						<contains text="LogManager.getLogger(getClass().getName())" />
+						<contains text="LogManager.getLogger(&quot;com.picdar" />
+					</or>
+				</fileset>
+			</pathconvert>
+			<fail message="The following files should have a LogManager.getLogger(...) call made more efficient :${line.separator}${loggerErrorFiles}">
+				<condition>
+					<length string="${loggerErrorFiles}" when="greater" length="0">
+					</length>
+				</condition>
+			</fail>
+		</sequential>
+	</target>
+	<target name="Check CSS Files" description="Check CSS Files">
+		<echo message="Checking CSS Files" />
+		<local name="errorFiles" />
+		<pathconvert property="errorFiles" pathsep="${line.separator}">
+			<fileset dir="${WorkspaceDir}/${ant.project.name}/CHP/Static/static/style" includes="**">
+				<or>
+					<contains text="initial" />
+					<!-- do not allow the 'initial' keyword in CSS files - this is because IE11 does not support the keyword -->
+					<containsregexp expression="(?&lt;!:)//(?! CHPSysMgtIncluded)" />
+					<!-- do not allow // comments in CSS files - we should only use /* */ comments,
+					     but ignore the :// combination, which is likely to be a URL,
+					     and ignore // when followed by a space and the word CHPSysMgtIncluded -->
+				</or>
+			</fileset>
+		</pathconvert>
+		<fail message="The following files do not meet CSS best practices:${line.separator}${errorFiles}">
+			<condition>
+				<length string="${errorFiles}" when="greater" length="0">
+				</length>
+			</condition>
+		</fail>
+	</target>
+	<target name="Check JSP Files" description="Check JSP Files">
+		<echo message="Checking JSP Files" />
+		<local name="errorFiles" />
+		<pathconvert property="errorFiles" pathsep="${line.separator}">
+			<fileset dir="${WorkspaceDir}/${ant.project.name}" includes="**/*.jsp">
+				<or>
+					<containsregexp expression="SafeOutputUtils\.encodeJavascript\b" />
+					<!-- Should be SafeOutputUtils.encodeJavaScript -->
+					<containsregexp expression="SafeOutputUtils\.encodeHTML\b" />
+					<!-- Should be SafeOutputUtils.encodeHtml -->
+					<containsregexp expression="SafeOutputUtils\.encodeHtmlAttribute\b" />
+					<!-- Should be SafeOutputUtils.encodeHTMLAttribute -->
+					<containsregexp expression="SafeOutputUtils\.encodeXml\b" />
+					<!-- Should be SafeOutputUtils.encodeXML -->
+					<containsregexp expression="SafeOutputUtils\.encodeXmlAttribute\b" />
+					<!-- Should be SafeOutputUtils.encodeXMLAttribute -->
+					<containsregexp expression="SafeOutputUtils\.encodeCss\b" />
+					<!-- Should be SafeOutputUtils.encodeCSS -->
+					<and>
+						<contains text="SafeOutputUtils" />
+						<not>
+							<contains text="com.picdar.webapplication.Server.SafeOutput.SafeOutputUtils" />
+							<!-- Probably indicates a missing %page import tag -->
+						</not>
+					</and>
+				</or>
+			</fileset>
+		</pathconvert>
+		<fail message="The following JSP files have mistakes:${line.separator}${errorFiles}">
+			<condition>
+				<length string="${errorFiles}" when="greater" length="0">
+				</length>
+			</condition>
+		</fail>
+	</target>
+	<target name="Check Java Files" description="Check Java Files">
+		<echo message="Checking Java Files" />
+		<local name="errorFiles" />
+		<pathconvert property="errorFiles" pathsep="${line.separator}">
+			<fileset dir="${WorkspaceDir}/${ant.project.name}" includes="**/*.java" excludes="**/MogulTagSupport.java,**/ProcessUtils.java">
+				<or>
+					<contains text="pageContext.getOut()" />
+					<!-- All TAGBLIB classes deriving from MogulTagSupport should use 
+						     the inherited "safe" write methods, rather than calling pageContext.getOut(). -->
+				</or>
+			</fileset>
+		</pathconvert>
+		<fail message="The following Java files have mistakes:${line.separator}${errorFiles}">
+			<condition>
+				<length string="${errorFiles}" when="greater" length="0">
+					</length>
+			</condition>
+		</fail>
+	</target>
+	<macrodef name="check-jsp-for-utf-8">
+		<attribute name="dirToScan"/>
+		<sequential>
+			<echo message="Checking JSP files in @{dirToScan}..." />
+			<local name="filesInError" />
+			<pathconvert property="filesInError" pathsep="${line.separator}">
+				<fileset dir="@{dirToScan}" includes="**/*.jsp">
+					<and>
+						<not>
+							<contains text="charset=UTF-8" />
+						</not>
+						<not>
+							<contains text="jsp:forward" />
+						</not>
+					</and>
+				</fileset>
+			</pathconvert>
+			<fail message="${line.separator}The following JSP files fail to specify the UTF-8 character set:${line.separator}${filesInError}">
+				<condition>
+					<length string="${filesInError}" when="greater" length="0">
+					</length>
+				</condition>
+			</fail>
+		</sequential>
+	</macrodef>
+	<macrodef name="check-for-bad-scripts">
+		<attribute name="dirToScan"/>
+		<sequential>
+			<echo message="Checking scripts within JSP files in @{dirToScan}..." />
+			<local name="filesInError" />
+			<pathconvert property="filesInError" pathsep="${line.separator}">
+				<fileset dir="@{dirToScan}" includes="**/*.jsp">
+					<or>
+						<!-- Internet explorer doesn't like scripts wrapped entirely in HTML comments with JSP -->
+						<containsregexp expression="&lt;script[^&gt;]*&gt;\s*&lt;!--" />
+						<containsregexp expression="--&gt;\s*&lt;/script" />
+					</or>
+				</fileset>
+			</pathconvert>
+			<fail message="${line.separator}The following files appear to use HTML comments inside a script:${line.separator}${filesInError}">
+				<condition>
+					<length string="${filesInError}" when="greater" length="0">
+					</length>
+				</condition>
+			</fail>
+			<local name="filesInError" />
+			<pathconvert property="filesInError" pathsep="${line.separator}">
+				<fileset dir="@{dirToScan}" includes="**/*.jsp">
+					<and>
+						<contains text="jquery-ui.js" />
+						<not>
+							<contains text="jquery-ui.css" />
+						</not>
+					</and>
+				</fileset>
+			</pathconvert>
+			<fail message="${line.separator}The following files contain jQueryUI but fail to include its CSS file:${line.separator}${filesInError}">
+				<condition>
+					<length string="${filesInError}" when="greater" length="0">
+					</length>
+				</condition>
+			</fail>
+			<local name="filesInError" />
+			<pathconvert property="filesInError" pathsep="${line.separator}">
+				<fileset dir="@{dirToScan}" includes="**/*.jsp">
+					<or>
+						<contains text="new Integer(" />
+						<contains text="new Boolean(" />
+						<contains text="new Byte(" />
+						<contains text="new Float(" />
+						<contains text="new Double(" />
+						<contains text="new Short(" />
+						<contains text="new Long(" />
+					</or>
+				</fileset>
+			</pathconvert>
+			<!--
+				new Integer(str).intValue()                => Integer.parseInt(str)
+				new Integer(value).toString()              => Integer.toString(value)
+				other usages of new Integer(valueOrString) => Integer.valueOf(valueOrString)
+				...and equivalents for Boolean, Byte, Float, Short, Long	
+			-->
+			<fail message="${line.separator}The following JSP files appear to contain unoptimised Java constructs:${line.separator}${filesInError}">
+				<condition>
+					<length string="${filesInError}" when="greater" length="0">
+					</length>
+				</condition>
+			</fail>
+			<local name="filesInError" />
+			<pathconvert property="filesInError" pathsep="${line.separator}">
+				<fileset dir="@{dirToScan}" includes="**/*.jsp,**/*.js">
+					<exclude name="**/lib/ckeditor/**"/>
+					<exclude name="**/lib/jquery/**"/>
+					<contains text="=&gt;" />
+				</fileset>
+			</pathconvert>
+			<!-- <fail message="${line.separator}The following files appear to use fat arrows (which IE11 doesn't support):${line.separator}${filesInError}">
+				<condition>
+					<length string="${filesInError}" when="greater" length="0">
+					</length>
+				</condition>
+			</fail> -->
+		</sequential>
+	</macrodef>
+	<target name="Check for bad scripts">
+		<sequential>
+			<check-for-bad-scripts dirToScan="CHP" />
+			<check-for-bad-scripts dirToScan="CHPSysMgt" />
+			<check-for-bad-scripts dirToScan="CHP-and-SystemManagement-shared" />
+			<check-for-bad-scripts dirToScan="CMIS" />
+			<check-for-bad-scripts dirToScan="Storage" />
+			<antcall target="Check for bad jQuery usage" />
+			<antcall target="Check for unsupported file types" />
+		</sequential>
+	</target>
+	<target name="Check for bad jQuery usage" description="Check for bad jQuery usage">
+		<ant antfile="build-jquery-check.xml" target="Check for bad jQuery usage" />
+	</target>
+	<target name="Check for unsupported file types">
+		<!-- We have made a decision (16.4.1JCa15) that we should not have the SVG folders from Font Awesome in our deployed build.
+		     The remedy is not to commit such folders into our source-code tree.
+		     This test guards against future check-ins that might forget to remove those SVG files. -->
+		<local name="filesInError2" />
+		<pathconvert property="filesInError2" pathsep="${line.separator}">
+			<fileset dir="." includes="**/fontawesome*/*svg*/**">
+			</fileset>
+		</pathconvert>
+		<fail message="${line.separator}The following files should not have been committed to SVN:${line.separator}${filesInError2}">
+			<condition>
+				<length string="${filesInError2}" when="greater" length="0">
+				</length>
+			</condition>
+		</fail>
+		<local name="filesInError1" />
+		<pathconvert property="filesInError1" pathsep="${line.separator}">
+			<fileset dir="." includes="**/fontawesome*/**/svg-sprites/**">
+			</fileset>
+		</pathconvert>
+		<fail message="${line.separator}The following files should not have been committed to SVN:${line.separator}${filesInError1}">
+			<condition>
+				<length string="${filesInError1}" when="greater" length="0">
+				</length>
+			</condition>
+		</fail>
+	</target>
+	<target name="Release i18n" description="Release i18n">
+		<ant antfile="build-i18n.xml" target="Release i18n" />
+	</target>
+	<target name="Release PO files for jBoss">
+		<copy toDir="${PackageReleaseDir}/po">
+			<fileset dir="${ReleaseDir}/CHPData/po" />
+		</copy>
+	</target>
+	<target name="Start JBoss" description="Start JBoss">
+		<if>
+			<isset property="useWildFly" />
+			<then>
+				<if>
+					<equals arg1="${useWildFly}" arg2="yes" />
+					<then>
+						<if>
+							<isset property="eclipse.wildfly.home" />
+							<then>
+								<property name="jBossPath" value="${eclipse.wildfly.home}"/>
+							</then>
+							<else>
+								<fail message="Please set the location of Wildfly using Windows > Preferences > Ant > Runtime > Properties > eclipse.wildfly.home" />
+							</else>
+						</if>
+					</then>
+					<else>
+						<if>
+							<equals arg1="${useWildFly}" arg2="no" />
+							<then>
+								<if>
+									<isset property="eclipse.jbosseap.home" />
+									<then>
+										<property name="jBossPath" value="${eclipse.jbosseap.home}"/>
+									</then>
+									<else>
+										<fail message="Please set the location of JBoss EAP using Windows > Preferences > Ant > Runtime > Properties > eclipse.jbosseap.home" />
+									</else>
+								</if>
+							</then>
+							<else>
+								<fail message="Please set the value of Windows > Preferences > Ant > Runtime > Properties > useWildFly to either yes or no" />
+							</else>
+						</if>
+					</else>
+				</if>
+			</then>
+			<else>
+				<fail message="Please set the value of Windows > Preferences > Ant > Runtime > Properties > useWildFly to either yes or no" />
+			</else>
+		</if>
+		<if>
+			<available file="${jBossPath}" type="dir" />
+			<then>
+				<property name="jbossFolder" value="${jBossPath}\bin" />
+			</then>
+			<else>
+				<fail message="Could not find ${jBossPath} on disk. Please check the paths you have entered in Windows > Preferences > Ant > Runtime > Properties." />
+			</else>
+		</if>
+		<!-- It helps to have your run.bat modified to kill the prior JBoss instance -->
+		<!-- You can do this in Windows by adding the following 3 lines to the top of your standalone.bat -->
+		<!--
+		    (Windows 7)
+				taskkill /FI "WINDOWTITLE eq Administrator:  JBOSS"
+				title JBOSS
+				timeout 2
+			
+			(Windows 10)
+				taskkill /FI "WINDOWTITLE eq JBOSS"
+				title JBOSS
+				timeout 2
+		-->
+		<!-- Note there are two spaces between the colon and the word JBOSS -->
+		<if>
+			<isset property="jbossFolder" />
+			<then>
+				<if>
+					<available file="standalone.bat" filepath="${jbossFolder}" type="file" />
+					<then>
+						<property name="jbossScript" value="standalone.bat" />
+					</then>
+				</if>
+				<if>
+					<isset property="jbossScript" />
+					<then>
+						<echo>Starting JBOSS (using ${jbossScript} in ${jbossFolder})</echo>
+						<echo>To swap between JBoss EAP and Wildfly, change the value of Windows > Preferences > Ant > Runtime > Properties > useWildFly</echo>
+						<exec executable="cmd" spawn="true" dir="${jbossFolder}">
+							<arg line="/k start "/>
+							<arg value="${jbossScript}"/>
+						</exec>
+					</then>
+					<else>
+						<echo message="Could not find your jBoss script!" />
+					</else>
+				</if>
+			</then>
+			<else>
+				<echo message="Could not find your jBoss folder!" />
+			</else>
+		</if>
+	</target>
+	<target name="all (Oracle-Dev): and start JBoss" description="all (Oracle-Dev): and start JBoss">
+		<antcall target="all (Oracle-Dev)"/>
+		<antcall target="Start JBoss" />
+	</target>
+	<target name="all (Postgres-Dev): and start JBoss" description="all (Postgres-Dev): and start JBoss">
+		<antcall target="all (Postgres-Dev)"/>
+		<antcall target="Start JBoss" />
+	</target>
+	<target name="all (VM-Dev): and start JBoss" description="all (VM-Dev): and start JBoss">
+		<antcall target="all (VM-Dev)"/>
+		<antcall target="Start JBoss" />
+	</target>
+	<target name="Quick Rebuild all: and start JBoss" description="Quick Rebuild all: and start JBoss">
+		<antcall target="Quick Rebuild all"/>
+		<antcall target="Start JBoss" />
+	</target>
+	<target name="Create opentext.key file" description="Create opentext.key file">
+		<!-- Is ant complaining that it cannot find the keystore? -->
+		<!-- Try the following borrowed from http://wiki.plexinfo.net/index.php?title=How_to_sign_JAR_files -->
+		<!-- keytool -genkey -alias mykey -->
+		<!-- keytool -selfcert -alias mykey -->
+		<!-- [In fact this was used to automate the process - see below.  Woot.] -->
+		<!--	Delete the previously run keytool.  -->
+		<delete>
+			<fileset dir="." includes="*.key" />
+		</delete>
+		<!--	Generate the key file in question.	-->
+		<exec executable="keytool">
+			<arg line="-genkey -alias mykey -keypass xyz123 -storepass xyz123 -dname &quot;CN=OpenText, OU=OpenText UK, O=OpenText, L=St Albans, ST=Herts, C=EN&quot; -keystore bin/opentext.key" />
+		</exec>
+		<echo message="Look for the file in the bin ./CHP/bin folder within the project" />
+	</target>
+	<target name="Delete all log-files from deploy folder" description="Delete all log-files from deploy folder">
+		<property name="logpath" value="${ReleaseDir}/CHPData/log" />
+		<if>
+			<available file="${logpath}" type="dir"/>
+			<then>
+				<trycatch property="deleteLogException">
+					<try>
+						<delete dir="${logpath}" />
+						<echo message="Successfully deleted folder: ${logpath}" />
+					</try>
+					<catch>
+						<fail message="${deleteLogException}${line.separator}Make sure your application server is not running and that no log-files are open in any external applications." />
+					</catch>
+				</trycatch>
+			</then>
+			<else>
+				<echo message="Folder not found: ${logpath}" />
+			</else>
+		</if>
+	</target>
+</project>
