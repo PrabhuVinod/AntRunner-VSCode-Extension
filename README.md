@@ -1,4 +1,4 @@
-# Ant Target Runner
+# Ant Runner - Build Target Executer
 
 A powerful VS Code extension that seamlessly integrates Apache Ant build targets into your development workflow. Browse, search, and execute Ant targets directly from the VS Code sidebar with an intuitive tree view interface.
 
