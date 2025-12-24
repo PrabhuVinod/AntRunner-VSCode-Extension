@@ -1,6 +1,6 @@
 {
   "name": "ant-target-runner",
-  "displayName": "Ant Target Runner",
+  "displayName": "Ant Runner - Build Target Executer",
   "description": "Reads build.xml and displays runnable Ant targets",
   "version": "0.0.1",
   "publisher": "PrabhuVinod",
