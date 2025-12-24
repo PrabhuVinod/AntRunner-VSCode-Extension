@@ -50,6 +50,7 @@ class AntTargetsProvider implements vscode.TreeDataProvider<AntTarget> {
 	private _onDidChangeTreeData: vscode.EventEmitter<AntTarget | undefined | null | void> = new vscode.EventEmitter<AntTarget | undefined | null | void>();
 	readonly onDidChangeTreeData: vscode.Event<AntTarget | undefined | null | void> = this._onDidChangeTreeData.event;
 	private showPrimaryOnly: boolean = false;
+	private searchQuery: string = '';
 
 	constructor() { }
 
@@ -65,6 +66,20 @@ class AntTargetsProvider implements vscode.TreeDataProvider<AntTarget> {
 
 	getShowPrimaryOnly(): boolean {
 		return this.showPrimaryOnly;
+	}
+
+	setSearchQuery(query: string): void {
+		this.searchQuery = query.toLowerCase();
+		this.refresh();
+	}
+
+	getSearchQuery(): string {
+		return this.searchQuery;
+	}
+
+	clearSearch(): void {
+		this.searchQuery = '';
+		this.refresh();
 	}
 
 	getTreeItem(element: AntTarget): vscode.TreeItem {
@@ -113,6 +128,16 @@ class AntTargetsProvider implements vscode.TreeDataProvider<AntTarget> {
 				targets = primaryTargets;
 			} else {
 				console.log(`Showing all targets`);
+			}
+			
+			// Apply search filter if query exists
+			if (this.searchQuery && this.searchQuery.trim() !== '') {
+				const query = this.searchQuery.toLowerCase();
+				targets = targets.filter(target => 
+					target.name.toLowerCase().includes(query) || 
+					(target.description && target.description.toLowerCase().includes(query))
+				);
+				console.log(`Filtered by search '${this.searchQuery}': ${targets.length} targets`);
 			}
 			
 			return targets;
@@ -203,6 +228,29 @@ export function activate(context: vscode.ExtensionContext) {
 		vscode.window.showInformationMessage(
 			showingPrimary ? 'Showing primary targets only' : 'Showing all targets'
 		);
+	});
+
+	// Register search targets command
+	const searchCommand = vscode.commands.registerCommand('ant-target-runner.searchTargets', async () => {
+		const currentQuery = antTargetsProvider.getSearchQuery();
+		const query = await vscode.window.showInputBox({
+			prompt: 'Search for Ant targets',
+			placeHolder: 'Enter target name or description...',
+			value: currentQuery
+		});
+		
+		if (query !== undefined) {
+			antTargetsProvider.setSearchQuery(query);
+			if (query.trim() !== '') {
+				vscode.window.showInformationMessage(`Searching for: ${query}`);
+			}
+		}
+	});
+
+	// Register clear search command
+	const clearSearchCommand = vscode.commands.registerCommand('ant-target-runner.clearSearch', () => {
+		antTargetsProvider.clearSearch();
+		vscode.window.showInformationMessage('Search cleared');
 	});
 
 	// Register refresh command
@@ -298,6 +346,8 @@ export function activate(context: vscode.ExtensionContext) {
 
 	context.subscriptions.push(handleClickCommand);
 	context.subscriptions.push(togglePrimaryCommand);
+	context.subscriptions.push(searchCommand);
+	context.subscriptions.push(clearSearchCommand);
 	context.subscriptions.push(refreshCommand);
 	context.subscriptions.push(configureCommand);
 	context.subscriptions.push(openTargetCommand);

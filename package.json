@@ -4,6 +4,7 @@
   "description": "Reads build.xml and displays runnable Ant targets",
   "version": "0.0.1",
   "publisher": "local",
+  "icon": "icon.png",
   "engines": {
     "vscode": "^1.107.0"
   },
@@ -53,6 +54,16 @@
         "icon": "$(filter)"
       },
       {
+        "command": "ant-target-runner.searchTargets",
+        "title": "Search Targets",
+        "icon": "$(search)"
+      },
+      {
+        "command": "ant-target-runner.clearSearch",
+        "title": "Clear Search",
+        "icon": "$(clear-all)"
+      },
+      {
         "command": "ant-target-runner.configureBuildFile",
         "title": "Configure Build File Path"
       }
@@ -60,14 +71,24 @@
     "menus": {
       "view/title": [
         {
+          "command": "ant-target-runner.searchTargets",
+          "when": "view == antTargets",
+          "group": "navigation@1"
+        },
+        {
+          "command": "ant-target-runner.clearSearch",
+          "when": "view == antTargets",
+          "group": "navigation@2"
+        },
+        {
           "command": "ant-target-runner.refreshTargets",
           "when": "view == antTargets",
-          "group": "navigation"
+          "group": "navigation@3"
         },
         {
           "command": "ant-target-runner.togglePrimaryTargets",
           "when": "view == antTargets",
-          "group": "navigation"
+          "group": "navigation@4"
         },
         {
           "command": "ant-target-runner.configureBuildFile",
