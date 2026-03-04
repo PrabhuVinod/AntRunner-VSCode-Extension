@@ -16,6 +16,13 @@ A powerful VS Code extension that seamlessly integrates Apache Ant build targets
 - **Inline Run Button**: Click the ▶️ icon to run any target
 - **Terminal Integration**: Commands execute in VS Code's integrated terminal
 - **Space Handling**: Automatically handles target names with spaces (e.g., "all (Oracle-Dev)")
+- **Verbose Mode**: Optionally run targets with Ant's `-v` flag for detailed output
+
+### ⭐ Favourites
+- **Mark Favourites**: Click the ☆ star icon next to any target to mark it as a favourite
+- **Visual Indicator**: Favourited targets display a yellow ★ star; unfavourited targets show a ☆ outline star
+- **Pinned to Top**: Favourite targets are always sorted to the top of the list
+- **Persistent**: Favourites are saved per workspace and per build.xml file, surviving restarts
 
 ### 🔍 Smart Filtering & Search
 - **Primary Target Filter**: Toggle between showing all targets or only primary targets (those with descriptions)
@@ -65,6 +72,17 @@ Install from the [VS Code Marketplace](https://marketplace.visualstudio.com/item
 - Click the 🔄 (refresh) icon to reload targets from build.xml
 - Useful after modifying your build file
 
+### Verbose Mode
+1. Open **File → Preferences → Settings** (or `Ctrl+,`)
+2. Search for `antRunner.verboseMode`
+3. Enable the checkbox
+4. All subsequent target runs will append `-v` to the `ant` command, producing detailed build output in the terminal
+
+### Favouriting Targets
+- **Add favourite**: Hover over a target and click the ☆ (star-outline) inline icon — the target moves to the top with a yellow ★
+- **Remove favourite**: Click the yellow ★ icon on a favourited target to unmark it
+- Favourites are saved automatically and restored the next time VS Code opens the workspace
+
 ## Toolbar Reference
 
 The Ant Runner view provides the following toolbar buttons:
@@ -74,8 +92,17 @@ The Ant Runner view provides the following toolbar buttons:
 | 🔍 | Search Targets | Open search input to filter targets |
 | ⨯ | Clear Search | Remove search filter |
 | 🔄 | Refresh Targets | Reload targets from build.xml |
-| 🔍 | Toggle Primary/All | Switch between primary and all targets |
+| ⊟ | Toggle Primary/All | Switch between primary and all targets |
 | ⚙️ | Configure Build File | Select build.xml location |
+
+### Inline Target Buttons
+
+| Icon | Command | Description |
+|------|---------|-------------|
+| ▶️ | Run Target | Execute the target in a terminal |
+| 📄 | Open Target | Navigate to the target definition in build.xml |
+| ☆ | Add to Favourites | Mark target as favourite (shown on non-favourited targets) |
+| ★ | Remove from Favourites | Unmark target as favourite (shown on favourited targets, yellow) |
 
 ## Requirements
 
@@ -109,9 +136,12 @@ ant -version
 
 ### Settings
 
-The extension adds the following workspace setting:
+The extension adds the following workspace settings:
 
-- `antRunner.buildFilePath` - Path to your build.xml file (absolute or workspace-relative)
+| Setting | Type | Default | Description |
+|---------|------|---------|-------------|
+| `antRunner.buildFilePath` | string | `""` | Path to your build.xml file (absolute or workspace-relative) |
+| `antRunner.verboseMode` | boolean | `false` | Run Ant targets with the `-v` (verbose) flag for detailed output |
 
 ### Example build.xml
 
@@ -162,6 +192,11 @@ The extension adds the following workspace setting:
 - Complex target dependencies are not visualized (only shows direct depends attribute)
 
 ## Release Notes
+
+### 0.0.2
+
+- **Verbose mode**: New `antRunner.verboseMode` setting appends `-v` to Ant commands for detailed terminal output
+- **Favourites**: Mark/unmark targets as favourites via inline star buttons; favourites are pinned to the top of the list and persisted per workspace and build file
 
 ### 0.0.1 (Initial Release)
 

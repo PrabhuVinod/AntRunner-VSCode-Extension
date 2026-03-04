@@ -2,7 +2,7 @@
   "name": "ant-target-runner",
   "displayName": "Ant Runner - Build Target Executer",
   "description": "Reads build.xml and displays runnable Ant targets",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "publisher": "PrabhuVinod",
   "icon": "icon.png",
   "license": "Apache-2.0",
@@ -83,6 +83,16 @@
       {
         "command": "ant-target-runner.configureBuildFile",
         "title": "Configure Build File Path"
+      },
+      {
+        "command": "ant-target-runner.favouriteTarget",
+        "title": "Add to Favourites",
+        "icon": "$(star-empty)"
+      },
+      {
+        "command": "ant-target-runner.unfavouriteTarget",
+        "title": "Remove from Favourites",
+        "icon": "$(star-full)"
       }
     ],
     "menus": {
@@ -115,13 +125,23 @@
       "view/item/context": [
         {
           "command": "ant-target-runner.runTarget",
-          "when": "view == antTargets && viewItem == antTarget",
+          "when": "view == antTargets && viewItem =~ /^antTarget/",
           "group": "inline@1"
         },
         {
           "command": "ant-target-runner.openTarget",
-          "when": "view == antTargets && viewItem == antTarget",
+          "when": "view == antTargets && viewItem =~ /^antTarget/",
           "group": "inline@2"
+        },
+        {
+          "command": "ant-target-runner.favouriteTarget",
+          "when": "view == antTargets && viewItem == antTarget",
+          "group": "inline@3"
+        },
+        {
+          "command": "ant-target-runner.unfavouriteTarget",
+          "when": "view == antTargets && viewItem == antTargetFavourite",
+          "group": "inline@3"
         }
       ]
     },
@@ -132,6 +152,11 @@
           "type": "string",
           "default": "",
           "description": "Path to the build.xml file"
+        },
+        "antRunner.verboseMode": {
+          "type": "boolean",
+          "default": false,
+          "description": "Run Ant targets in verbose mode (-v flag)"
         }
       }
     }

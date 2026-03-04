@@ -13,7 +13,8 @@ class AntTarget extends vscode.TreeItem {
 		public readonly collapsibleState: vscode.TreeItemCollapsibleState,
 		public readonly buildFilePath: string,
 		public readonly lineNumber: number,
-		public readonly depends: string
+		public readonly depends: string,
+		public readonly isFavourite: boolean = false
 	) {
 		super(name, collapsibleState);
 		
@@ -34,7 +35,9 @@ class AntTarget extends vscode.TreeItem {
 			title: 'Handle Click',
 			arguments: [this]
 		};
-		this.contextValue = 'antTarget';
+
+		// contextValue drives which inline buttons are shown (star-empty vs star-filled)
+		this.contextValue = isFavourite ? 'antTargetFavourite' : 'antTarget';
 		
 		// Different icons for primary (with description) and secondary (without description) targets
 		if (description && description.trim() !== '') {
@@ -52,7 +55,28 @@ class AntTargetsProvider implements vscode.TreeDataProvider<AntTarget> {
 	private showPrimaryOnly: boolean = false;
 	private searchQuery: string = '';
 
-	constructor() { }
+	constructor(private context: vscode.ExtensionContext) { }
+
+	// --- Favourites persistence (scoped to workspace + build file path) ---
+
+	private getFavourites(resolvedBuildFilePath: string): string[] {
+		const all = this.context.workspaceState.get<Record<string, string[]>>('antRunner.favourites', {});
+		return all[resolvedBuildFilePath] ?? [];
+	}
+
+	async toggleFavourite(target: AntTarget): Promise<void> {
+		const all = this.context.workspaceState.get<Record<string, string[]>>('antRunner.favourites', {});
+		const list = [...(all[target.buildFilePath] ?? [])];
+		const idx = list.indexOf(target.name);
+		if (idx === -1) {
+			list.push(target.name);
+		} else {
+			list.splice(idx, 1);
+		}
+		all[target.buildFilePath] = list;
+		await this.context.workspaceState.update('antRunner.favourites', all);
+		this.refresh();
+	}
 
 	refresh(): void {
 		this._onDidChangeTreeData.fire();
@@ -115,7 +139,8 @@ class AntTargetsProvider implements vscode.TreeDataProvider<AntTarget> {
 
 		try {
 			const xmlContent = fs.readFileSync(resolvedPath, 'utf-8');
-			let targets = this.parseTargets(xmlContent, resolvedPath);
+			const favouriteNames = new Set(this.getFavourites(resolvedPath));
+			let targets = this.parseTargets(xmlContent, resolvedPath, favouriteNames);
 			
 			console.log(`Total targets parsed: ${targets.length}`);
 			console.log(`showPrimaryOnly flag: ${this.showPrimaryOnly}`);
@@ -139,6 +164,12 @@ class AntTargetsProvider implements vscode.TreeDataProvider<AntTarget> {
 				);
 				console.log(`Filtered by search '${this.searchQuery}': ${targets.length} targets`);
 			}
+
+			// Sort: favourited targets appear at the top, preserving original order within each group
+			targets.sort((a, b) => {
+				if (a.isFavourite === b.isFavourite) { return 0; }
+				return a.isFavourite ? -1 : 1;
+			});
 			
 			return targets;
 		} catch (error) {
@@ -147,7 +178,7 @@ class AntTargetsProvider implements vscode.TreeDataProvider<AntTarget> {
 		}
 	}
 
-	private parseTargets(xmlContent: string, buildFilePath: string): AntTarget[] {
+private parseTargets(xmlContent: string, buildFilePath: string, favouriteNames: Set<string> = new Set()): AntTarget[] {
 		const targets: AntTarget[] = [];
 		const lines = xmlContent.split('\n');
 
@@ -173,13 +204,14 @@ class AntTargetsProvider implements vscode.TreeDataProvider<AntTarget> {
 				if (targets.length < 5) {
 					console.log(`Target: ${name}, description: '${description}'`);
 				}
-								targets.push(new AntTarget(
+							targets.push(new AntTarget(
 					name,
 					description,
 					vscode.TreeItemCollapsibleState.None,
 					buildFilePath,
 					lineNumber,
-					depends
+					depends,
+					favouriteNames.has(name)
 				));
 			}
 		}
@@ -195,7 +227,7 @@ export function activate(context: vscode.ExtensionContext) {
 	console.log('Ant Target Runner extension is now active!');
 
 	// Create the tree data provider
-	const antTargetsProvider = new AntTargetsProvider();
+	const antTargetsProvider = new AntTargetsProvider(context);
 
 	// Register the tree data provider
 	vscode.window.registerTreeDataProvider('antTargets', antTargetsProvider);
@@ -332,6 +364,10 @@ export function activate(context: vscode.ExtensionContext) {
 
 		const buildDir = path.dirname(resolvedPath);
 
+		// Check verbose mode setting
+		const verboseMode = config.get<boolean>('verboseMode', false);
+		const verboseFlag = verboseMode ? ' -v' : '';
+
 		// Create a new terminal and run ant
 		const terminal = vscode.window.createTerminal({
 			name: `Ant: ${targetName}`,
@@ -341,7 +377,16 @@ export function activate(context: vscode.ExtensionContext) {
 		terminal.show();
 		// Quote the target name to handle spaces
 		const quotedTarget = targetName.includes(' ') ? `"${targetName}"` : targetName;
-		terminal.sendText(`ant -buildfile "${path.basename(resolvedPath)}" ${quotedTarget}`);
+		terminal.sendText(`ant ${verboseFlag} -buildfile "${path.basename(resolvedPath)}" ${quotedTarget}`);
+	});
+
+	// Register favourite/unfavourite target commands
+	const favouriteTargetCommand = vscode.commands.registerCommand('ant-target-runner.favouriteTarget', async (target: AntTarget) => {
+		await antTargetsProvider.toggleFavourite(target);
+	});
+
+	const unfavouriteTargetCommand = vscode.commands.registerCommand('ant-target-runner.unfavouriteTarget', async (target: AntTarget) => {
+		await antTargetsProvider.toggleFavourite(target);
 	});
 
 	context.subscriptions.push(handleClickCommand);
@@ -352,6 +397,8 @@ export function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(configureCommand);
 	context.subscriptions.push(openTargetCommand);
 	context.subscriptions.push(runTargetCommand);
+	context.subscriptions.push(favouriteTargetCommand);
+	context.subscriptions.push(unfavouriteTargetCommand);
 }
 
 // This method is called when your extension is deactivated
